@@ -12,10 +12,11 @@ export interface LoginRequest {
 
 export interface LoginResponse {
   user: {
-    id: bigint;
+    id: string;
     name: string;
     email: string;
     role: UserRole;
+    merchantId?: string;
   };
   accessToken: string;
   refreshToken?: string;

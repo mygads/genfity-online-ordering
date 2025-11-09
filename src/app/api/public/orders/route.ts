@@ -6,6 +6,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import orderService from '@/lib/services/OrderService';
 import { ValidationError } from '@/lib/constants/errors';
+import prisma from '@/lib/db/client';
+import { serializeBigInt } from '@/lib/utils/serializer';
 
 /**
  * POST /api/public/orders
@@ -15,13 +17,42 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
-    // Validate required fields
-    if (!body.merchantId) {
+    // Validate merchantCode (lookup merchant)
+    if (!body.merchantCode) {
       return NextResponse.json(
         {
           success: false,
           error: 'VALIDATION_ERROR',
-          message: 'Merchant ID is required',
+          message: 'Merchant code is required',
+          statusCode: 400,
+        },
+        { status: 400 }
+      );
+    }
+
+    // Get merchant by code
+    const merchant = await prisma.merchant.findUnique({
+      where: { code: body.merchantCode },
+    });
+
+    if (!merchant) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'NOT_FOUND',
+          message: `Merchant with code '${body.merchantCode}' not found`,
+          statusCode: 404,
+        },
+        { status: 404 }
+      );
+    }
+
+    if (!merchant.isActive) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'MERCHANT_INACTIVE',
+          message: 'Merchant is currently not accepting orders',
           statusCode: 400,
         },
         { status: 400 }
@@ -65,8 +96,11 @@ export async function POST(req: NextRequest) {
     }
 
     // Create order
+    console.log('[ORDER] Creating order for merchant:', merchant.id.toString(), merchant.name);
+    console.log('[ORDER] Items:', body.items);
+    
     const order = await orderService.createOrder({
-      merchantId: BigInt(body.merchantId),
+      merchantId: merchant.id, // Use merchant.id from lookup
       orderType: body.orderType,
       tableNumber: body.tableNumber,
       customerName: body.customerName,
@@ -81,29 +115,17 @@ export async function POST(req: NextRequest) {
       notes: body.notes,
     });
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const orderData = order as any;
+    console.log('[ORDER] Order created successfully:', order);
 
     return NextResponse.json({
       success: true,
-      data: {
-        orderId: orderData.id.toString(),
-        orderNumber: orderData.orderNumber,
-        status: orderData.status,
-        orderType: orderData.orderType,
-        tableNumber: orderData.tableNumber,
-        subtotal: orderData.subtotal,
-        taxAmount: orderData.taxAmount,
-        totalAmount: orderData.totalAmount,
-        customerName: orderData.customerName,
-        customerEmail: orderData.customerEmail,
-        createdAt: orderData.createdAt,
-      },
+      data: serializeBigInt(order),
       message: 'Order created successfully',
       statusCode: 201,
     });
   } catch (error) {
-    console.error('Error creating order:', error);
+    console.error('[ORDER] Error creating order:', error);
+    console.error('[ORDER] Error stack:', error instanceof Error ? error.stack : 'No stack');
 
     if (error instanceof ValidationError) {
       return NextResponse.json(

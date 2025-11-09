@@ -8,6 +8,7 @@ import orderService from '@/lib/services/OrderService';
 import prisma from '@/lib/db/client';
 import { withMerchant } from '@/lib/middleware/auth';
 import type { AuthContext } from '@/lib/middleware/auth';
+import { serializeBigInt } from '@/lib/utils/serializer';
 
 /**
  * GET /api/merchant/orders
@@ -59,7 +60,7 @@ async function handleGet(req: NextRequest, context: AuthContext) {
 
     return NextResponse.json({
       success: true,
-      data: orders,
+      data: serializeBigInt(orders),
       message: 'Orders retrieved successfully',
       statusCode: 200,
     });

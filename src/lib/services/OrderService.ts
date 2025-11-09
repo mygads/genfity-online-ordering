@@ -230,7 +230,7 @@ class OrderService {
       customer = await userRepository.create({
         name: input.customerName,
         email: input.customerEmail,
-        phoneNumber: input.customerPhone,
+        phone: input.customerPhone, // Fix: phoneNumber → phone
         passwordHash: hashedPassword,
         role: 'CUSTOMER',
         isActive: true,

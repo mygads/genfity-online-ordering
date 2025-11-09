@@ -301,6 +301,129 @@ class AuthService {
   }
 
   /**
+   * First-time password change (for users with mustChangePassword=true)
+   * Used when merchant owner receives temp password
+   * Does not require JWT authentication
+   * 
+   * @param email User email
+   * @param tempPassword Temporary password provided by admin
+   * @param newPassword New password chosen by user
+   * @returns Login response with tokens
+   */
+  async firstTimePasswordChange(
+    email: string,
+    tempPassword: string,
+    newPassword: string
+  ): Promise<LoginResponse> {
+    // Validate inputs
+    validateEmail(email);
+    validatePassword(newPassword);
+
+    // Find user by email
+    const user = await userRepository.findByEmail(email);
+
+    if (!user) {
+      throw new AuthenticationError(
+        'Invalid email or password',
+        ERROR_CODES.INVALID_CREDENTIALS
+      );
+    }
+
+    // Check if user is active
+    if (!user.isActive) {
+      throw new AuthenticationError(
+        'Your account has been deactivated',
+        ERROR_CODES.USER_INACTIVE
+      );
+    }
+
+    // Verify temp password
+    const isTempPasswordValid = await comparePassword(
+      tempPassword,
+      user.passwordHash
+    );
+
+    if (!isTempPasswordValid) {
+      throw new AuthenticationError(
+        'Invalid temporary password',
+        ERROR_CODES.INVALID_CREDENTIALS
+      );
+    }
+
+    // Hash new password
+    const newPasswordHash = await hashPassword(newPassword);
+
+    // Update password and clear mustChangePassword flag
+    await userRepository.update(user.id, {
+      passwordHash: newPasswordHash,
+      mustChangePassword: false,
+    });
+
+    // Create session and login (same as normal login flow)
+    const expiresAt = new Date();
+    expiresAt.setSeconds(expiresAt.getSeconds() + parseInt(process.env.JWT_EXPIRY || '3600'));
+
+    const refreshExpiresAt = new Date();
+    refreshExpiresAt.setSeconds(
+      refreshExpiresAt.getSeconds() + parseInt(process.env.JWT_REFRESH_EXPIRY || '604800')
+    );
+
+    // Generate temporary token for session creation
+    const tempToken = `temp_${user.id}_${Date.now()}`;
+
+    const session = await sessionRepository.create({
+      user: {
+        connect: { id: user.id },
+      },
+      token: tempToken,
+      deviceInfo: 'first-time-password-change',
+      ipAddress: null,
+      status: 'ACTIVE',
+      expiresAt,
+      refreshExpiresAt,
+    });
+
+    // Generate JWT with session ID in payload
+    const accessToken = generateAccessToken({
+      userId: user.id,
+      sessionId: session.id,
+      role: user.role,
+      email: user.email,
+    });
+
+    const refreshToken = generateRefreshToken({
+      userId: user.id,
+      sessionId: session.id,
+    });
+
+    // Update session with actual access token
+    await sessionRepository.update(session.id, {
+      token: accessToken,
+    });
+
+    // Update last login timestamp
+    await userRepository.updateLastLogin(user.id);
+
+    // Get merchant info if user is merchant owner/staff
+    let merchantId: string | undefined;
+    if (user.merchantUsers && user.merchantUsers.length > 0) {
+      merchantId = user.merchantUsers[0].merchantId.toString();
+    }
+
+    return {
+      user: {
+        id: user.id.toString(),
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        merchantId,
+      },
+      accessToken,
+      refreshToken,
+    };
+  }
+
+  /**
    * Get user by session ID
    */
   async getUserBySession(sessionId: bigint) {

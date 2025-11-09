@@ -10,6 +10,7 @@ import prisma from '@/lib/db/client';
 import { withMerchant } from '@/lib/middleware/auth';
 import { ValidationError } from '@/lib/constants/errors';
 import type { AuthContext } from '@/lib/middleware/auth';
+import { serializeBigInt } from '@/lib/utils/serializer';
 
 /**
  * GET /api/merchant/menu
@@ -45,7 +46,7 @@ async function handleGet(req: NextRequest, context: AuthContext) {
 
     return NextResponse.json({
       success: true,
-      data: menus,
+      data: serializeBigInt(menus),
       message: 'Menus retrieved successfully',
       statusCode: 200,
     });
@@ -117,7 +118,7 @@ async function handlePost(req: NextRequest, context: AuthContext) {
 
     return NextResponse.json({
       success: true,
-      data: menu,
+      data: serializeBigInt(menu),
       message: 'Menu created successfully',
       statusCode: 201,
     });

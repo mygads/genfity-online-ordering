@@ -7,33 +7,39 @@
 import { NextRequest, NextResponse } from 'next/server';
 import menuService from '@/lib/services/MenuService';
 import { withMerchant } from '@/lib/middleware/auth';
+import type { AuthContext } from '@/lib/middleware/auth';
 import { ValidationError } from '@/lib/constants/errors';
+import { serializeBigInt } from '@/lib/utils/serializer';
+import prisma from '@/lib/db/client';
 
 /**
  * GET /api/merchant/categories
  * Get all menu categories for merchant
  */
-async function handleGet(req: NextRequest) {
+async function handleGet(req: NextRequest, authContext: AuthContext) {
   try {
-    const merchantId = req.headers.get('x-merchant-id');
+    // Get merchant from user's merchant_users relationship
+    const merchantUser = await prisma.merchantUser.findFirst({
+      where: { userId: authContext.userId },
+    });
     
-    if (!merchantId) {
+    if (!merchantUser) {
       return NextResponse.json(
         {
           success: false,
-          error: 'UNAUTHORIZED',
-          message: 'Merchant ID not found',
-          statusCode: 401,
+          error: 'MERCHANT_NOT_FOUND',
+          message: 'Merchant not found for this user',
+          statusCode: 404,
         },
-        { status: 401 }
+        { status: 404 }
       );
     }
 
-    const categories = await menuService.getCategoriesByMerchant(BigInt(merchantId));
+    const categories = await menuService.getCategoriesByMerchant(merchantUser.merchantId);
 
     return NextResponse.json({
       success: true,
-      data: categories,
+      data: serializeBigInt(categories),
       message: 'Categories retrieved successfully',
       statusCode: 200,
     });
@@ -56,26 +62,29 @@ async function handleGet(req: NextRequest) {
  * POST /api/merchant/categories
  * Create new menu category
  */
-async function handlePost(req: NextRequest) {
+async function handlePost(req: NextRequest, authContext: AuthContext) {
   try {
-    const merchantId = req.headers.get('x-merchant-id');
+    // Get merchant from user's merchant_users relationship
+    const merchantUser = await prisma.merchantUser.findFirst({
+      where: { userId: authContext.userId },
+    });
     
-    if (!merchantId) {
+    if (!merchantUser) {
       return NextResponse.json(
         {
           success: false,
-          error: 'UNAUTHORIZED',
-          message: 'Merchant ID not found',
-          statusCode: 401,
+          error: 'MERCHANT_NOT_FOUND',
+          message: 'Merchant not found for this user',
+          statusCode: 404,
         },
-        { status: 401 }
+        { status: 404 }
       );
     }
 
     const body = await req.json();
 
     const category = await menuService.createCategory({
-      merchantId: BigInt(merchantId),
+      merchantId: merchantUser.merchantId,
       name: body.name,
       description: body.description,
       sortOrder: body.sortOrder,
@@ -83,7 +92,7 @@ async function handlePost(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: category,
+      data: serializeBigInt(category),
       message: 'Category created successfully',
       statusCode: 201,
     });

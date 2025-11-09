@@ -140,28 +140,31 @@ class MerchantService {
     const tempPassword = generateTempPassword();
     const hashedPassword = await hashPassword(tempPassword);
 
-    // Create merchant with owner
-    const result = await merchantRepository.createWithUser(
+    // Create owner user first
+    const owner = await userRepository.create({
+      name: input.ownerName,
+      email: input.ownerEmail,
+      phone: input.ownerPhone,
+      passwordHash: hashedPassword,
+      role: 'MERCHANT_OWNER',
+      isActive: true,
+      mustChangePassword: true, // Force password change on first login
+    });
+
+    // Create merchant with owner link
+    const merchant = await merchantRepository.createWithUser(
       {
         name: input.name,
         code: input.code,
         description: input.description,
         address: input.address,
-        phoneNumber: input.phoneNumber,
+        phone: input.phoneNumber, // Map phoneNumber to phone (Prisma field)
         email: input.email,
-        taxRate: input.taxRate ?? 0,
-        taxIncluded: input.taxIncluded ?? false,
+        enableTax: (input.taxRate !== undefined && input.taxRate > 0), // Map to enableTax
+        taxPercentage: input.taxRate !== undefined ? input.taxRate : null, // Map to taxPercentage
         isActive: true,
       },
-      {
-        name: input.ownerName,
-        email: input.ownerEmail,
-        phoneNumber: input.ownerPhone,
-        passwordHash: hashedPassword,
-        role: 'MERCHANT_OWNER',
-        isActive: true,
-        mustChangePassword: true, // Force password change on first login
-      },
+      owner.id, // Pass userId
       'OWNER'
     );
 
@@ -180,8 +183,8 @@ class MerchantService {
     }
 
     return {
-      merchant: result.merchant,
-      owner: result.user,
+      merchant,
+      owner,
       tempPassword, // Return for admin to display (optional)
     };
   }
@@ -221,8 +224,21 @@ class MerchantService {
       validateEmail(input.email);
     }
 
+    // Map input fields to Prisma schema fields
+    const updateData: Record<string, unknown> = {};
+    if (input.name !== undefined) updateData.name = input.name;
+    if (input.description !== undefined) updateData.description = input.description;
+    if (input.address !== undefined) updateData.address = input.address;
+    if (input.phoneNumber !== undefined) updateData.phone = input.phoneNumber; // Map to phone
+    if (input.email !== undefined) updateData.email = input.email;
+    if (input.taxRate !== undefined) {
+      updateData.enableTax = input.taxRate > 0;
+      updateData.taxPercentage = input.taxRate;
+    }
+    if (input.isActive !== undefined) updateData.isActive = input.isActive;
+
     // Update merchant
-    return await merchantRepository.update(merchantId, input);
+    return await merchantRepository.update(merchantId, updateData);
   }
 
   /**

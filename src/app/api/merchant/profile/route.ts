@@ -6,32 +6,53 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import merchantService from '@/lib/services/MerchantService';
+import prisma from '@/lib/db/client';
 import { withMerchant } from '@/lib/middleware/auth';
+import type { AuthContext } from '@/lib/middleware/auth';
 import { ValidationError } from '@/lib/constants/errors';
+import { serializeBigInt } from '@/lib/utils/serializer';
 
 /**
  * GET /api/merchant/profile
  * Get merchant profile with opening hours
  */
-async function handleGet(req: NextRequest) {
+async function handleGet(req: NextRequest, authContext: AuthContext) {
   try {
-    // Get merchant ID from auth middleware (stored in headers)
-    const merchantId = req.headers.get('x-merchant-id');
+    console.log('[PROFILE] AuthContext:', {
+      userId: authContext.userId.toString(),
+      sessionId: authContext.sessionId.toString(),
+      role: authContext.role,
+      email: authContext.email,
+    });
+
+    // Get merchant from user's merchant_users relationship
+    const merchantUser = await prisma.merchantUser.findFirst({
+      where: { userId: authContext.userId },
+      include: { merchant: true },
+    });
     
-    if (!merchantId) {
+    console.log('[PROFILE] MerchantUser query result:', merchantUser ? {
+      id: merchantUser.id.toString(),
+      merchantId: merchantUser.merchantId.toString(),
+      userId: merchantUser.userId.toString(),
+    } : 'NOT FOUND');
+    
+    if (!merchantUser) {
       return NextResponse.json(
         {
           success: false,
-          error: 'UNAUTHORIZED',
-          message: 'Merchant ID not found in request',
-          statusCode: 401,
+          error: 'MERCHANT_NOT_FOUND',
+          message: 'Merchant not found for this user',
+          statusCode: 404,
         },
-        { status: 401 }
+        { status: 404 }
       );
     }
 
-    // Get merchant details
-    const merchant = await merchantService.getMerchantById(BigInt(merchantId));
+    // Get merchant details with opening hours
+    const merchant = await merchantService.getMerchantById(merchantUser.merchantId);
+
+    console.log('[PROFILE] Merchant service result:', merchant ? 'Found' : 'NOT FOUND');
 
     if (!merchant) {
       return NextResponse.json(
@@ -47,12 +68,12 @@ async function handleGet(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: merchant,
+      data: serializeBigInt(merchant),
       message: 'Merchant profile retrieved successfully',
       statusCode: 200,
     });
   } catch (error) {
-    console.error('Error getting merchant profile:', error);
+    console.error('[PROFILE] Error getting merchant profile:', error);
 
     return NextResponse.json(
       {
@@ -70,20 +91,23 @@ async function handleGet(req: NextRequest) {
  * PUT /api/merchant/profile
  * Update merchant profile
  */
-async function handlePut(req: NextRequest) {
+async function handlePut(req: NextRequest, authContext: AuthContext) {
   try {
-    // Get merchant ID from auth middleware
-    const merchantId = req.headers.get('x-merchant-id');
+    // Get merchant from user's merchant_users relationship
+    const merchantUser = await prisma.merchantUser.findFirst({
+      where: { userId: authContext.userId },
+      include: { merchant: true },
+    });
     
-    if (!merchantId) {
+    if (!merchantUser) {
       return NextResponse.json(
         {
           success: false,
-          error: 'UNAUTHORIZED',
-          message: 'Merchant ID not found in request',
-          statusCode: 401,
+          error: 'MERCHANT_NOT_FOUND',
+          message: 'Merchant not found for this user',
+          statusCode: 404,
         },
-        { status: 401 }
+        { status: 404 }
       );
     }
 
@@ -91,7 +115,7 @@ async function handlePut(req: NextRequest) {
 
     // Update merchant
     const updatedMerchant = await merchantService.updateMerchant(
-      BigInt(merchantId),
+      merchantUser.merchantId,
       {
         name: body.name,
         description: body.description,
@@ -105,7 +129,7 @@ async function handlePut(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: updatedMerchant,
+      data: serializeBigInt(updatedMerchant),
       message: 'Merchant profile updated successfully',
       statusCode: 200,
     });
