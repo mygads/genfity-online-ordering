@@ -1,0 +1,168 @@
+/**
+ * Authentication Middleware
+ * Verifies JWT tokens and enforces role-based access control
+ */
+
+import { NextRequest, NextResponse } from 'next/server';
+import authService from '@/lib/services/AuthService';
+import { extractTokenFromHeader } from '@/lib/utils/jwtManager';
+import { AuthenticationError, AuthorizationError, ERROR_CODES } from '@/lib/constants/errors';
+import { handleError } from '@/lib/middleware/errorHandler';
+import type { UserRole } from '@/lib/types/auth';
+
+/**
+ * Authenticated user context
+ */
+export interface AuthContext {
+  userId: bigint;
+  sessionId: bigint;
+  role: UserRole;
+  email: string;
+}
+
+/**
+ * Verify JWT token and return user context
+ */
+export async function authenticate(request: NextRequest): Promise<AuthContext> {
+  // Extract token from Authorization header
+  const authHeader = request.headers.get('authorization');
+  const token = extractTokenFromHeader(authHeader);
+
+  if (!token) {
+    throw new AuthenticationError(
+      'Authorization token required',
+      ERROR_CODES.UNAUTHORIZED
+    );
+  }
+
+  // Verify token and get user context
+  const userContext = await authService.verifyToken(token);
+
+  if (!userContext) {
+    throw new AuthenticationError(
+      'Invalid or expired token',
+      ERROR_CODES.TOKEN_INVALID
+    );
+  }
+
+  return userContext as AuthContext;
+}
+
+/**
+ * Check if user has required role
+ */
+export function requireRole(
+  userContext: AuthContext,
+  allowedRoles: UserRole[]
+): void {
+  if (!allowedRoles.includes(userContext.role)) {
+    throw new AuthorizationError(
+      'You do not have permission to access this resource',
+      ERROR_CODES.FORBIDDEN
+    );
+  }
+}
+
+/**
+ * Middleware wrapper for protected routes
+ * Usage: export const GET = withAuth(handler, ['SUPER_ADMIN'])
+ */
+export function withAuth(
+  handler: (
+    request: NextRequest,
+    context: AuthContext,
+    params?: any
+  ) => Promise<NextResponse>,
+  allowedRoles?: UserRole[]
+) {
+  return async (request: NextRequest, { params }: { params?: any }) => {
+    try {
+      // Authenticate user
+      const authContext = await authenticate(request);
+
+      // Check role if specified
+      if (allowedRoles && allowedRoles.length > 0) {
+        requireRole(authContext, allowedRoles);
+      }
+
+      // Call the actual handler with auth context
+      return await handler(request, authContext, params);
+    } catch (error) {
+      return handleError(error);
+    }
+  };
+}
+
+/**
+ * Middleware for Super Admin only routes
+ */
+export function withSuperAdmin(
+  handler: (
+    request: NextRequest,
+    context: AuthContext,
+    params?: any
+  ) => Promise<NextResponse>
+) {
+  return withAuth(handler, ['SUPER_ADMIN']);
+}
+
+/**
+ * Middleware for Merchant (Owner/Staff) routes
+ */
+export function withMerchant(
+  handler: (
+    request: NextRequest,
+    context: AuthContext,
+    params?: any
+  ) => Promise<NextResponse>
+) {
+  return withAuth(handler, ['MERCHANT_OWNER', 'MERCHANT_STAFF']);
+}
+
+/**
+ * Middleware for Merchant Owner only routes
+ */
+export function withMerchantOwner(
+  handler: (
+    request: NextRequest,
+    context: AuthContext,
+    params?: any
+  ) => Promise<NextResponse>
+) {
+  return withAuth(handler, ['MERCHANT_OWNER']);
+}
+
+/**
+ * Middleware for Customer routes
+ */
+export function withCustomer(
+  handler: (
+    request: NextRequest,
+    context: AuthContext,
+    params?: any
+  ) => Promise<NextResponse>
+) {
+  return withAuth(handler, ['CUSTOMER']);
+}
+
+/**
+ * Optional authentication - doesn't fail if no token
+ * Returns null if not authenticated
+ */
+export async function optionalAuth(
+  request: NextRequest
+): Promise<AuthContext | null> {
+  try {
+    const authHeader = request.headers.get('authorization');
+    const token = extractTokenFromHeader(authHeader);
+
+    if (!token) {
+      return null;
+    }
+
+    const userContext = await authService.verifyToken(token);
+    return userContext as AuthContext | null;
+  } catch {
+    return null;
+  }
+}

@@ -1,0 +1,46 @@
+/**
+ * QR Code Generator Utility
+ * Generates QR codes for order numbers
+ */
+
+import QRCode from 'qrcode';
+
+/**
+ * Generate QR code as Data URL (base64)
+ * @param data - Data to encode (order number)
+ * @returns Base64 encoded QR code image
+ */
+export async function generateQRCode(data: string): Promise<string> {
+  try {
+    const qrCodeDataURL = await QRCode.toDataURL(data, {
+      errorCorrectionLevel: 'M',
+      type: 'image/png',
+      margin: 1,
+      width: 300,
+      color: {
+        dark: '#000000',
+        light: '#FFFFFF',
+      },
+    });
+    
+    return qrCodeDataURL;
+  } catch (error) {
+    console.error('Error generating QR code:', error);
+    throw new Error('Failed to generate QR code');
+  }
+}
+
+/**
+ * Generate QR code for order
+ * @param orderNumber - Order number
+ * @param merchantCode - Merchant code
+ * @returns Base64 QR code image
+ */
+export async function generateOrderQRCode(
+  orderNumber: string,
+  merchantCode: string
+): Promise<string> {
+  // QR code will contain order tracking URL
+  const trackingUrl = `${process.env.NEXT_PUBLIC_APP_URL}/${merchantCode}/order-summary?orderNumber=${orderNumber}`;
+  return generateQRCode(trackingUrl);
+}

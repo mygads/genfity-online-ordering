@@ -1,0 +1,373 @@
+// GENFITY Online Ordering System - Prisma Schema
+// Based on STEP_01_DATABASE_DESIGN.txt
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// MODUL 1: AUTHENTICATION & ROLES
+// ============================================================================
+
+model User {
+  id                    BigInt              @id @default(autoincrement())
+  name                  String
+  email                 String              @unique
+  phone                 String?
+  passwordHash          String              @map("password_hash")
+  role                  UserRole            @default(CUSTOMER)
+  isActive              Boolean             @default(true) @map("is_active")
+  mustChangePassword    Boolean             @default(false) @map("must_change_password")
+  lastLoginAt           DateTime?           @map("last_login_at") @db.Timestamptz
+  createdAt             DateTime            @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt             DateTime            @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  sessions              UserSession[]
+  merchantUsers         MerchantUser[]
+  ordersAsCustomer      Order[]             @relation("CustomerOrders")
+  statusChanges         OrderStatusHistory[]
+
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+model UserSession {
+  id                    BigInt              @id @default(autoincrement())
+  userId                BigInt              @map("user_id")
+  token                 String              @unique
+  deviceInfo            String?             @map("device_info")
+  ipAddress             String?             @map("ip_address")
+  status                SessionStatus       @default(ACTIVE)
+  expiresAt             DateTime            @map("expires_at") @db.Timestamptz
+  refreshExpiresAt      DateTime?           @map("refresh_expires_at") @db.Timestamptz
+  createdAt             DateTime            @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt             DateTime            @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  user                  User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@index([status])
+  @@map("user_sessions")
+}
+
+model MerchantUser {
+  id                    BigInt              @id @default(autoincrement())
+  merchantId            BigInt              @map("merchant_id")
+  userId                BigInt              @map("user_id")
+  role                  MerchantRole        @default(STAFF)
+  createdAt             DateTime            @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt             DateTime            @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  merchant              Merchant            @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  user                  User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([merchantId, userId])
+  @@index([merchantId])
+  @@index([userId])
+  @@map("merchant_users")
+}
+
+// ============================================================================
+// MODUL 2: MERCHANT & CONFIGURATION
+// ============================================================================
+
+model Merchant {
+  id                    BigInt              @id @default(autoincrement())
+  code                  String              @unique
+  name                  String
+  email                 String
+  phone                 String?
+  address               String?
+  city                  String?
+  state                 String?
+  postalCode            String?             @map("postal_code")
+  country               String              @default("Australia")
+  logoUrl               String?             @map("logo_url")
+  mapUrl                String?             @map("map_url")
+  description           String?             @db.Text
+  isActive              Boolean             @default(true) @map("is_active")
+  enableTax             Boolean             @default(false) @map("enable_tax")
+  taxPercentage         Decimal?            @map("tax_percentage") @db.Decimal(5, 2)
+  currency              String              @default("AUD")
+  createdAt             DateTime            @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt             DateTime            @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  merchantUsers         MerchantUser[]
+  openingHours          MerchantOpeningHour[]
+  menuCategories        MenuCategory[]
+  menus                 Menu[]
+  addonCategories       AddonCategory[]
+  orders                Order[]
+
+  @@index([code])
+  @@index([isActive])
+  @@map("merchants")
+}
+
+model MerchantOpeningHour {
+  id                    BigInt              @id @default(autoincrement())
+  merchantId            BigInt              @map("merchant_id")
+  dayOfWeek             Int                 @map("day_of_week") // 0=Sunday, 1=Monday, ..., 6=Saturday
+  openTime              String?             @map("open_time") // HH:MM format
+  closeTime             String?             @map("close_time") // HH:MM format
+  isClosed              Boolean             @default(false) @map("is_closed")
+  createdAt             DateTime            @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt             DateTime            @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  merchant              Merchant            @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@unique([merchantId, dayOfWeek])
+  @@map("merchant_opening_hours")
+}
+
+// ============================================================================
+// MODUL 3: MENU & ADDONS
+// ============================================================================
+
+model MenuCategory {
+  id                    BigInt              @id @default(autoincrement())
+  merchantId            BigInt              @map("merchant_id")
+  name                  String
+  description           String?             @db.Text
+  sortOrder             Int                 @default(0) @map("sort_order")
+  isActive              Boolean             @default(true) @map("is_active")
+  createdAt             DateTime            @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt             DateTime            @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  merchant              Merchant            @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  menus                 Menu[]
+
+  @@index([merchantId])
+  @@index([sortOrder])
+  @@map("menu_categories")
+}
+
+model Menu {
+  id                    BigInt              @id @default(autoincrement())
+  merchantId            BigInt              @map("merchant_id")
+  categoryId            BigInt?             @map("category_id")
+  name                  String
+  description           String?             @db.Text
+  price                 Decimal             @db.Decimal(10, 2)
+  imageUrl              String?             @map("image_url")
+  isActive              Boolean             @default(true) @map("is_active")
+  isPromo               Boolean             @default(false) @map("is_promo")
+  trackStock            Boolean             @default(false) @map("track_stock")
+  stockQty              Int?                @map("stock_qty")
+  createdAt             DateTime            @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt             DateTime            @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  merchant              Merchant            @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  category              MenuCategory?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  addonCategories       MenuAddonCategory[]
+  orderItems            OrderItem[]
+
+  @@index([merchantId])
+  @@index([categoryId])
+  @@index([isActive])
+  @@index([isPromo])
+  @@map("menus")
+}
+
+model AddonCategory {
+  id                    BigInt              @id @default(autoincrement())
+  merchantId            BigInt              @map("merchant_id")
+  name                  String
+  description           String?             @db.Text
+  minSelection          Int                 @default(0) @map("min_selection")
+  maxSelection          Int?                @map("max_selection")
+  isActive              Boolean             @default(true) @map("is_active")
+  createdAt             DateTime            @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt             DateTime            @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  merchant              Merchant            @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  addonItems            AddonItem[]
+  menuAddonCategories   MenuAddonCategory[]
+
+  @@index([merchantId])
+  @@map("addon_categories")
+}
+
+model AddonItem {
+  id                    BigInt              @id @default(autoincrement())
+  addonCategoryId       BigInt              @map("addon_category_id")
+  name                  String
+  description           String?             @db.Text
+  price                 Decimal             @db.Decimal(10, 2)
+  isActive              Boolean             @default(true) @map("is_active")
+  trackStock            Boolean             @default(false) @map("track_stock")
+  stockQty              Int?                @map("stock_qty")
+  createdAt             DateTime            @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt             DateTime            @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  addonCategory         AddonCategory       @relation(fields: [addonCategoryId], references: [id], onDelete: Cascade)
+  orderItemAddons       OrderItemAddon[]
+
+  @@index([addonCategoryId])
+  @@map("addon_items")
+}
+
+model MenuAddonCategory {
+  menuId                BigInt              @map("menu_id")
+  addonCategoryId       BigInt              @map("addon_category_id")
+
+  // Relations
+  menu                  Menu                @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  addonCategory         AddonCategory       @relation(fields: [addonCategoryId], references: [id], onDelete: Cascade)
+
+  @@id([menuId, addonCategoryId])
+  @@index([menuId])
+  @@index([addonCategoryId])
+  @@map("menu_addon_categories")
+}
+
+// ============================================================================
+// MODUL 4: ORDERS & CHECKOUT
+// ============================================================================
+
+model Order {
+  id                    BigInt              @id @default(autoincrement())
+  merchantId            BigInt              @map("merchant_id")
+  customerId            BigInt?             @map("customer_id")
+  orderNumber           String              @map("order_number")
+  customerName          String              @map("customer_name")
+  customerEmail         String              @map("customer_email")
+  customerPhone         String?             @map("customer_phone")
+  orderType             OrderType           @map("order_type")
+  tableNumber           String?             @map("table_number")
+  status                OrderStatus         @default(PENDING)
+  subtotal              Decimal             @db.Decimal(10, 2)
+  taxAmount             Decimal             @default(0) @map("tax_amount") @db.Decimal(10, 2)
+  totalAmount           Decimal             @map("total_amount") @db.Decimal(10, 2)
+  notes                 String?             @db.Text
+  qrCodeUrl             String?             @map("qr_code_url")
+  placedAt              DateTime            @default(now()) @map("placed_at") @db.Timestamptz
+  createdAt             DateTime            @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt             DateTime            @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  merchant              Merchant            @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  customer              User?               @relation("CustomerOrders", fields: [customerId], references: [id], onDelete: SetNull)
+  orderItems            OrderItem[]
+  statusHistory         OrderStatusHistory[]
+
+  @@unique([merchantId, orderNumber])
+  @@index([merchantId])
+  @@index([customerId])
+  @@index([orderNumber])
+  @@index([status])
+  @@index([placedAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id                    BigInt              @id @default(autoincrement())
+  orderId               BigInt              @map("order_id")
+  menuId                BigInt              @map("menu_id")
+  menuName              String              @map("menu_name")
+  menuPrice             Decimal             @map("menu_price") @db.Decimal(10, 2)
+  quantity              Int
+  subtotal              Decimal             @db.Decimal(10, 2)
+  notes                 String?             @db.Text
+  createdAt             DateTime            @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt             DateTime            @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  order                 Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menu                  Menu                @relation(fields: [menuId], references: [id], onDelete: Restrict)
+  addons                OrderItemAddon[]
+
+  @@index([orderId])
+  @@index([menuId])
+  @@map("order_items")
+}
+
+model OrderItemAddon {
+  id                    BigInt              @id @default(autoincrement())
+  orderItemId           BigInt              @map("order_item_id")
+  addonItemId           BigInt              @map("addon_item_id")
+  addonName             String              @map("addon_name")
+  addonPrice            Decimal             @map("addon_price") @db.Decimal(10, 2)
+  quantity              Int
+  subtotal              Decimal             @db.Decimal(10, 2)
+  createdAt             DateTime            @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt             DateTime            @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  orderItem             OrderItem           @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  addonItem             AddonItem           @relation(fields: [addonItemId], references: [id], onDelete: Restrict)
+
+  @@index([orderItemId])
+  @@index([addonItemId])
+  @@map("order_item_addons")
+}
+
+model OrderStatusHistory {
+  id                    BigInt              @id @default(autoincrement())
+  orderId               BigInt              @map("order_id")
+  fromStatus            OrderStatus?        @map("from_status")
+  toStatus              OrderStatus         @map("to_status")
+  changedByUserId       BigInt?             @map("changed_by_user_id")
+  note                  String?             @db.Text
+  createdAt             DateTime            @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  order                 Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  changedBy             User?               @relation(fields: [changedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@index([createdAt])
+  @@map("order_status_history")
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum UserRole {
+  SUPER_ADMIN
+  MERCHANT_OWNER
+  MERCHANT_STAFF
+  CUSTOMER
+}
+
+enum MerchantRole {
+  OWNER
+  STAFF
+}
+
+enum SessionStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
+}
+
+enum OrderType {
+  DINE_IN
+  TAKEAWAY
+}
+
+enum OrderStatus {
+  PENDING
+  ACCEPTED
+  IN_PROGRESS
+  READY
+  COMPLETED
+  CANCELLED
+}

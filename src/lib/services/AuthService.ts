@@ -1,0 +1,359 @@
+/**
+ * Authentication Service
+ * Handles login, logout, token management, and session tracking (STEP_02)
+ */
+
+import userRepository from '@/lib/repositories/UserRepository';
+import sessionRepository from '@/lib/repositories/SessionRepository';
+import { hashPassword, comparePassword } from '@/lib/utils/passwordHasher';
+import { generateAccessToken, generateRefreshToken, verifyAccessToken, verifyRefreshToken } from '@/lib/utils/jwtManager';
+import { validateEmail, validatePassword } from '@/lib/utils/validators';
+import { AuthenticationError, NotFoundError, ValidationError, ERROR_CODES } from '@/lib/constants/errors';
+import type { LoginRequest, LoginResponse, JWTPayload } from '@/lib/types/auth';
+
+class AuthService {
+  /**
+   * Login user - STEP_02 Flow
+   * 1. Validate input
+   * 2. Find user by email
+   * 3. Verify password
+   * 4. Create session in database
+   * 5. Generate JWT with session ID
+   * 6. Update last login timestamp
+   */
+  async login(
+    credentials: LoginRequest,
+    deviceInfo?: string,
+    ipAddress?: string
+  ): Promise<LoginResponse> {
+    // Step 1: Validate input
+    validateEmail(credentials.email);
+    validatePassword(credentials.password);
+
+    // Step 2: Find user by email
+    const user = await userRepository.findByEmail(credentials.email);
+    
+    if (!user) {
+      throw new AuthenticationError(
+        'Invalid email or password',
+        ERROR_CODES.INVALID_CREDENTIALS
+      );
+    }
+
+    // Check if user is active
+    if (!user.isActive) {
+      throw new AuthenticationError(
+        'Your account has been deactivated',
+        ERROR_CODES.USER_INACTIVE
+      );
+    }
+
+    // Step 3: Verify password
+    const isPasswordValid = await comparePassword(
+      credentials.password,
+      user.passwordHash
+    );
+
+    if (!isPasswordValid) {
+      throw new AuthenticationError(
+        'Invalid email or password',
+        ERROR_CODES.INVALID_CREDENTIALS
+      );
+    }
+
+    // Check if user must change password
+    if (user.mustChangePassword) {
+      throw new AuthenticationError(
+        'You must change your password before continuing',
+        ERROR_CODES.MUST_CHANGE_PASSWORD
+      );
+    }
+
+    // Step 4: Create session in database
+    const expiresAt = new Date();
+    expiresAt.setSeconds(expiresAt.getSeconds() + parseInt(process.env.JWT_EXPIRY || '3600'));
+
+    const refreshExpiresAt = new Date();
+    refreshExpiresAt.setSeconds(
+      refreshExpiresAt.getSeconds() + parseInt(process.env.JWT_REFRESH_EXPIRY || '604800')
+    );
+
+    // Generate temporary token for session creation
+    const tempToken = `temp_${user.id}_${Date.now()}`;
+
+    const session = await sessionRepository.create({
+      user: {
+        connect: { id: user.id },
+      },
+      token: tempToken,
+      deviceInfo,
+      ipAddress,
+      status: 'ACTIVE',
+      expiresAt,
+      refreshExpiresAt,
+    });
+
+    // Step 5: Generate JWT with session ID in payload
+    const accessToken = generateAccessToken({
+      userId: user.id,
+      sessionId: session.id,
+      role: user.role,
+      email: user.email,
+    });
+
+    const refreshToken = generateRefreshToken({
+      userId: user.id,
+      sessionId: session.id,
+    });
+
+    // Update session with actual access token
+    await sessionRepository.update(session.id, {
+      token: accessToken,
+    });
+
+    // Step 6: Update last login timestamp
+    await userRepository.updateLastLogin(user.id);
+
+    // Get merchant info if user is merchant owner/staff
+    let merchantId: bigint | undefined;
+    if (user.merchantUsers && user.merchantUsers.length > 0) {
+      merchantId = user.merchantUsers[0].merchantId;
+    }
+
+    return {
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        merchantId,
+      },
+      accessToken,
+      refreshToken,
+    };
+  }
+
+  /**
+   * Logout user - Revoke session
+   */
+  async logout(sessionId: bigint): Promise<void> {
+    const session = await sessionRepository.findById(sessionId);
+
+    if (!session) {
+      throw new NotFoundError(
+        'Session not found',
+        ERROR_CODES.SESSION_NOT_FOUND
+      );
+    }
+
+    // Revoke session
+    await sessionRepository.revoke(sessionId);
+  }
+
+  /**
+   * Logout from all devices - Revoke all user sessions
+   */
+  async logoutAll(userId: bigint): Promise<void> {
+    await sessionRepository.revokeAllByUserId(userId);
+  }
+
+  /**
+   * Verify access token and get user info
+   */
+  async verifyToken(token: string): Promise<{
+    userId: bigint;
+    sessionId: bigint;
+    role: string;
+    email: string;
+  } | null> {
+    // Verify JWT signature and expiry
+    const payload = verifyAccessToken(token);
+    
+    if (!payload) {
+      return null;
+    }
+
+    // Check if session is still valid in database
+    const isValid = await sessionRepository.isValid(payload.sessionId);
+    
+    if (!isValid) {
+      return null;
+    }
+
+    return {
+      userId: payload.userId,
+      sessionId: payload.sessionId,
+      role: payload.role,
+      email: payload.email,
+    };
+  }
+
+  /**
+   * Refresh access token using refresh token
+   */
+  async refreshAccessToken(refreshToken: string): Promise<{
+    accessToken: string;
+    refreshToken: string;
+  }> {
+    // Verify refresh token
+    const payload = verifyRefreshToken(refreshToken);
+
+    if (!payload) {
+      throw new AuthenticationError(
+        'Invalid refresh token',
+        ERROR_CODES.TOKEN_INVALID
+      );
+    }
+
+    // Check if session is valid
+    const session = await sessionRepository.findById(payload.sessionId);
+
+    if (!session) {
+      throw new NotFoundError(
+        'Session not found',
+        ERROR_CODES.SESSION_NOT_FOUND
+      );
+    }
+
+    if (session.status !== 'ACTIVE') {
+      throw new AuthenticationError(
+        'Session has been revoked',
+        ERROR_CODES.SESSION_REVOKED
+      );
+    }
+
+    // Check if refresh token is expired
+    if (session.refreshExpiresAt && session.refreshExpiresAt < new Date()) {
+      await sessionRepository.updateStatus(session.id, 'EXPIRED');
+      throw new AuthenticationError(
+        'Refresh token has expired',
+        ERROR_CODES.TOKEN_EXPIRED
+      );
+    }
+
+    // Generate new tokens
+    const newAccessToken = generateAccessToken({
+      userId: session.userId,
+      sessionId: session.id,
+      role: session.user.role,
+      email: session.user.email,
+    });
+
+    const newRefreshToken = generateRefreshToken({
+      userId: session.userId,
+      sessionId: session.id,
+    });
+
+    // Update session with new access token
+    await sessionRepository.update(session.id, {
+      token: newAccessToken,
+      expiresAt: new Date(Date.now() + parseInt(process.env.JWT_EXPIRY || '3600') * 1000),
+    });
+
+    return {
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
+    };
+  }
+
+  /**
+   * Change password
+   */
+  async changePassword(
+    userId: bigint,
+    currentPassword: string,
+    newPassword: string
+  ): Promise<void> {
+    // Validate new password
+    validatePassword(newPassword);
+
+    // Get user
+    const user = await userRepository.findById(userId);
+
+    if (!user) {
+      throw new NotFoundError('User not found', ERROR_CODES.USER_NOT_FOUND);
+    }
+
+    // Verify current password
+    const isPasswordValid = await comparePassword(
+      currentPassword,
+      user.passwordHash
+    );
+
+    if (!isPasswordValid) {
+      throw new AuthenticationError(
+        'Current password is incorrect',
+        ERROR_CODES.INVALID_CREDENTIALS
+      );
+    }
+
+    // Hash new password
+    const newPasswordHash = await hashPassword(newPassword);
+
+    // Update password and clear mustChangePassword flag
+    await userRepository.update(userId, {
+      passwordHash: newPasswordHash,
+      mustChangePassword: false,
+    });
+
+    // Optionally: Revoke all other sessions (force re-login)
+    // await sessionRepository.revokeAllByUserId(userId);
+  }
+
+  /**
+   * Get user by session ID
+   */
+  async getUserBySession(sessionId: bigint) {
+    const session = await sessionRepository.findById(sessionId);
+
+    if (!session) {
+      throw new NotFoundError(
+        'Session not found',
+        ERROR_CODES.SESSION_NOT_FOUND
+      );
+    }
+
+    if (session.status !== 'ACTIVE') {
+      throw new AuthenticationError(
+        'Session is not active',
+        ERROR_CODES.SESSION_REVOKED
+      );
+    }
+
+    return session.user;
+  }
+
+  /**
+   * Get active sessions for user
+   */
+  async getActiveSessions(userId: bigint) {
+    return sessionRepository.findActiveByUserId(userId);
+  }
+
+  /**
+   * Revoke specific session
+   */
+  async revokeSession(sessionId: bigint, userId: bigint): Promise<void> {
+    const session = await sessionRepository.findById(sessionId);
+
+    if (!session) {
+      throw new NotFoundError(
+        'Session not found',
+        ERROR_CODES.SESSION_NOT_FOUND
+      );
+    }
+
+    // Verify session belongs to user
+    if (session.userId !== userId) {
+      throw new AuthenticationError(
+        'Unauthorized',
+        ERROR_CODES.FORBIDDEN
+      );
+    }
+
+    await sessionRepository.revoke(sessionId);
+  }
+}
+
+const authService = new AuthService();
+export default authService;
