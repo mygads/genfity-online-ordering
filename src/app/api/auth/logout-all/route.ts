@@ -16,10 +16,11 @@
 
 import { NextRequest } from 'next/server';
 import authService from '@/lib/services/AuthService';
-import { handleError, successResponse } from '@/lib/middleware/errorHandler';
+import { successResponse } from '@/lib/middleware/errorHandler';
 import { withAuth } from '@/lib/middleware/auth';
+import type { AuthContext } from '@/lib/types/auth';
 
-async function logoutAllHandler(request: NextRequest, authContext: any) {
+async function logoutAllHandler(request: NextRequest, authContext: AuthContext) {
   // Revoke all sessions
   await authService.logoutAll(authContext.userId);
 

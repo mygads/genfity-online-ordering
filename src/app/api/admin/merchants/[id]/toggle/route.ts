@@ -18,11 +18,12 @@ import merchantService from '@/lib/services/MerchantService';
 import { successResponse } from '@/lib/middleware/errorHandler';
 import { withSuperAdmin } from '@/lib/middleware/auth';
 
-async function toggleStatusHandler(
+async function toggleMerchantHandler(
   request: NextRequest,
   authContext: unknown,
-  params: { id: string }
+  context: { params: Promise<{ id: string }> }
 ) {
+  const params = await context.params;
   const merchantId = BigInt(params.id);
 
   // Toggle merchant status
@@ -35,4 +36,4 @@ async function toggleStatusHandler(
   );
 }
 
-export const POST = withSuperAdmin(toggleStatusHandler);
+export const POST = withSuperAdmin(toggleMerchantHandler);

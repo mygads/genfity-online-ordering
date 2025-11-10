@@ -708,14 +708,14 @@ class MenuService {
     // Validate all selected addons exist and are available
     for (const addonId of selectedAddonIds) {
       const addon = await menuRepository.findAddonItemById(addonId);
-      if (!addon || addon.categoryId !== addonCategoryId) {
+      if (!addon || addon.addonCategoryId !== addonCategoryId) {
         throw new ValidationError(
           'Invalid addon selection',
           ERROR_CODES.INVALID_ADDON_SELECTION
         );
       }
 
-      if (!addon.isAvailable) {
+      if (!addon.isActive) {
         throw new ValidationError(
           `Addon "${addon.name}" is not available`,
           ERROR_CODES.ADDON_INACTIVE

@@ -159,7 +159,7 @@ class MerchantService {
         description: input.description,
         address: input.address,
         phone: input.phoneNumber, // Map phoneNumber to phone (Prisma field)
-        email: input.email,
+        email: input.email || input.ownerEmail, // Use merchant email or owner email as fallback
         enableTax: (input.taxRate !== undefined && input.taxRate > 0), // Map to enableTax
         taxPercentage: input.taxRate !== undefined ? input.taxRate : null, // Map to taxPercentage
         isActive: true,
@@ -257,7 +257,7 @@ class MerchantService {
    * @param merchantId Merchant ID
    * @returns Merchant with details
    */
-  async getMerchantById(merchantId: bigint): Promise<MerchantWithDetails | null> {
+  async getMerchantById(merchantId: bigint): Promise<any> {
     return await merchantRepository.findById(merchantId);
   }
 

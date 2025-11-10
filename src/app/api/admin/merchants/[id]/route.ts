@@ -35,8 +35,9 @@ import type { UpdateMerchantInput } from '@/lib/services/MerchantService';
 async function getMerchantHandler(
   request: NextRequest,
   authContext: unknown,
-  params: { id: string }
+  context: { params: Promise<{ id: string }> }
 ) {
+  const params = await context.params;
   const merchantId = BigInt(params.id);
 
   // Get merchant details
@@ -48,8 +49,9 @@ async function getMerchantHandler(
 async function updateMerchantHandler(
   request: NextRequest,
   authContext: unknown,
-  params: { id: string }
+  context: { params: Promise<{ id: string }> }
 ) {
+  const params = await context.params;
   const merchantId = BigInt(params.id);
   const body: UpdateMerchantInput = await request.json();
 
@@ -62,8 +64,9 @@ async function updateMerchantHandler(
 async function deleteMerchantHandler(
   request: NextRequest,
   authContext: unknown,
-  params: { id: string }
+  context: { params: Promise<{ id: string }> }
 ) {
+  const params = await context.params;
   const merchantId = BigInt(params.id);
 
   // Delete merchant (soft delete)

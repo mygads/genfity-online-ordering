@@ -16,14 +16,16 @@
 
 import { NextRequest } from 'next/server';
 import authService from '@/lib/services/AuthService';
-import { handleError, successResponse } from '@/lib/middleware/errorHandler';
+import { successResponse } from '@/lib/middleware/errorHandler';
 import { withAuth } from '@/lib/middleware/auth';
+import { AuthContext } from '@/lib/types/auth';
 
 async function revokeSessionHandler(
   request: NextRequest,
-  authContext: any,
-  params: any
+  authContext: AuthContext,
+  context: { params: Promise<{ sessionId: string }> }
 ) {
+  const params = await context.params;
   const sessionId = BigInt(params.sessionId);
 
   // Revoke session

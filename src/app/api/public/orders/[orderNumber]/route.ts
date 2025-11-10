@@ -11,9 +11,10 @@ import orderService from '@/lib/services/OrderService';
  * Public endpoint to track order by order number
  */
 export async function GET(
-  req: NextRequest,
-  { params }: { params: { orderNumber: string } }
+  request: NextRequest,
+  context: { params: Promise<{ orderNumber: string }> }
 ) {
+  const params = await context.params;
   try {
     const order = await orderService.getOrderByNumber(params.orderNumber);
 

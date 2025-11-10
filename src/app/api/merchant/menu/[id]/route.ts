@@ -18,9 +18,10 @@ import type { AuthContext } from '@/lib/middleware/auth';
 async function handleGet(
   req: NextRequest,
   context: AuthContext,
-  params?: { id: string }
+  contextParams: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await contextParams.params;
     const menuId = BigInt(params?.id || '0');
     const menu = await menuService.getMenuWithAddons(menuId);
 
@@ -64,9 +65,10 @@ async function handleGet(
 async function handlePut(
   req: NextRequest,
   context: AuthContext,
-  params?: { id: string }
+  contextParams: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await contextParams.params;
     const menuId = BigInt(params?.id || '0');
     const body = await req.json();
 
@@ -133,9 +135,10 @@ async function handlePut(
 async function handleDelete(
   req: NextRequest,
   context: AuthContext,
-  params?: { id: string }
+  contextParams: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await contextParams.params;
     const menuId = BigInt(params?.id || '0');
 
     await menuService.deleteMenu(menuId);

@@ -26,10 +26,11 @@
 
 import { NextRequest } from 'next/server';
 import authService from '@/lib/services/AuthService';
-import { handleError, successResponse } from '@/lib/middleware/errorHandler';
+import { successResponse } from '@/lib/middleware/errorHandler';
 import { withAuth } from '@/lib/middleware/auth';
+import { AuthContext } from '@/lib/types/auth';
 
-async function sessionsHandler(request: NextRequest, authContext: any) {
+async function sessionsHandler(request: NextRequest, authContext: AuthContext) {
   // Get all active sessions
   const sessions = await authService.getActiveSessions(authContext.userId);
 

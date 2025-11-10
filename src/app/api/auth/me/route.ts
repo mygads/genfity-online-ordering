@@ -19,10 +19,11 @@
 
 import { NextRequest } from 'next/server';
 import authService from '@/lib/services/AuthService';
-import { handleError, successResponse } from '@/lib/middleware/errorHandler';
+import { successResponse } from '@/lib/middleware/errorHandler';
 import { withAuth } from '@/lib/middleware/auth';
+import { AuthContext } from '@/lib/types/auth';
 
-async function meHandler(request: NextRequest, authContext: any) {
+async function meHandler(request: NextRequest, authContext: AuthContext) {
   // Get user with session details
   const result = await authService.getUserBySession(authContext.sessionId);
 

@@ -17,9 +17,10 @@ import type { AuthContext } from '@/lib/middleware/auth';
 async function handlePut(
   req: NextRequest,
   context: AuthContext,
-  params?: { id: string }
+  contextParams: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await contextParams.params;
     const categoryId = BigInt(params?.id || '0');
     const body = await req.json();
 
@@ -81,9 +82,10 @@ async function handlePut(
 async function handleDelete(
   req: NextRequest,
   context: AuthContext,
-  params?: { id: string }
+  contextParams: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await contextParams.params;
     const categoryId = BigInt(params?.id || '0');
 
     await menuService.deleteCategory(categoryId);

@@ -12,9 +12,10 @@ import menuService from '@/lib/services/MenuService';
  * Public endpoint to browse merchant menu
  */
 export async function GET(
-  req: NextRequest,
-  { params }: { params: { merchantCode: string } }
+  request: NextRequest,
+  context: { params: Promise<{ merchantCode: string }> }
 ) {
+  const params = await context.params;
   try {
     // Get merchant by code
     const merchant = await merchantService.getMerchantByCode(params.merchantCode);

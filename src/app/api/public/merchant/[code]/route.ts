@@ -11,9 +11,10 @@ import merchantService from '@/lib/services/MerchantService';
  * Public endpoint to lookup merchant by code
  */
 export async function GET(
-  req: NextRequest,
-  { params }: { params: { code: string } }
+  request: NextRequest,
+  context: { params: Promise<{ code: string }> }
 ) {
+  const params = await context.params;
   try {
     const merchant = await merchantService.getMerchantByCode(params.code);
 

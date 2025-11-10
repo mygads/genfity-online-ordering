@@ -8,8 +8,8 @@ import sessionRepository from '@/lib/repositories/SessionRepository';
 import { hashPassword, comparePassword } from '@/lib/utils/passwordHasher';
 import { generateAccessToken, generateRefreshToken, verifyAccessToken, verifyRefreshToken } from '@/lib/utils/jwtManager';
 import { validateEmail, validatePassword } from '@/lib/utils/validators';
-import { AuthenticationError, NotFoundError, ValidationError, ERROR_CODES } from '@/lib/constants/errors';
-import type { LoginRequest, LoginResponse, JWTPayload } from '@/lib/types/auth';
+import { AuthenticationError, NotFoundError, ERROR_CODES } from '@/lib/constants/errors';
+import type { LoginRequest, LoginResponse } from '@/lib/types/auth';
 
 class AuthService {
   /**

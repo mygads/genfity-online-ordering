@@ -55,3 +55,14 @@ export interface AuthUser {
   role: UserRole;
   merchantId?: bigint;
 }
+
+/**
+ * Authentication context passed to route handlers
+ */
+export interface AuthContext {
+  userId: bigint;
+  sessionId: bigint;
+  role: UserRole;
+  email: string;
+  merchantId?: bigint;
+}

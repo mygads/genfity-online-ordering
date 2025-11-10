@@ -12,9 +12,10 @@ import { serializeBigInt } from '@/lib/utils/serializer';
 async function handlePut(
   req: NextRequest,
   authContext: AuthContext,
-  params?: { id: string }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await context.params;
     if (!params?.id) {
       return NextResponse.json(
         {
@@ -64,7 +65,8 @@ async function handlePut(
     const order = await orderService.updateOrderStatus(
       orderId,
       status,
-      merchantUser.merchantId
+      authContext.userId, // Pass userId as updatedBy
+      body.notes // Optional notes
     );
 
     console.log('[ORDER UPDATE] Order status updated:', order);

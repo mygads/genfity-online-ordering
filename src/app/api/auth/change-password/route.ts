@@ -22,11 +22,12 @@
 
 import { NextRequest } from 'next/server';
 import authService from '@/lib/services/AuthService';
-import { handleError, successResponse } from '@/lib/middleware/errorHandler';
+import { successResponse } from '@/lib/middleware/errorHandler';
 import { withAuth } from '@/lib/middleware/auth';
 import { ValidationError, ERROR_CODES } from '@/lib/constants/errors';
+import type { AuthContext } from '@/lib/types/auth';
 
-async function changePasswordHandler(request: NextRequest, authContext: any) {
+async function changePasswordHandler(request: NextRequest, authContext: AuthContext) {
   // Parse request body
   const body = await request.json();
   const { currentPassword, newPassword } = body;

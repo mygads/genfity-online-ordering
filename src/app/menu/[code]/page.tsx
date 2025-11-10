@@ -93,17 +93,20 @@ export default function PublicMenuPage() {
     // Store cart data in sessionStorage
     const cartData = Array.from(cart.entries()).map(([itemId, quantity]) => {
       // Find item details
-      let itemDetails: MenuItem | null = null;
-      menuData?.categories.forEach(cat => {
+      let itemDetails: MenuItem | undefined;
+      for (const cat of menuData?.categories || []) {
         const found = cat.items.find(item => item.id === itemId);
-        if (found) itemDetails = found;
-      });
+        if (found) {
+          itemDetails = found;
+          break;
+        }
+      }
       
       return {
         itemId,
         quantity,
-        itemName: itemDetails?.name || "",
-        price: itemDetails?.price || "0"
+        itemName: itemDetails ? itemDetails.name : "",
+        price: itemDetails ? itemDetails.price : "0"
       };
     });
 

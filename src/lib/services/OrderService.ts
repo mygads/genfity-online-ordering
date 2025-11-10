@@ -227,15 +227,23 @@ class OrderService {
       const tempPassword = Math.random().toString(36).slice(-8); // Simple password
       const hashedPassword = await hashPassword(tempPassword);
 
-      customer = await userRepository.create({
+      await userRepository.create({
         name: input.customerName,
         email: input.customerEmail,
-        phone: input.customerPhone, // Fix: phoneNumber → phone
+        phone: input.customerPhone,
         passwordHash: hashedPassword,
         role: 'CUSTOMER',
         isActive: true,
         mustChangePassword: false,
       });
+      
+      // Re-fetch to get proper type with merchantUsers relation
+      customer = await userRepository.findByEmail(input.customerEmail);
+    }
+
+    // Ensure customer exists
+    if (!customer) {
+      throw new Error('Failed to create or find customer');
     }
 
     // 7. Generate order number
@@ -407,7 +415,7 @@ class OrderService {
     );
 
     // Report is grouped by date
-    return report.map((item: { placedAt: Date; _count: { id: number }; _sum: { totalAmount: number | null } }) => ({
+    return report.map((item) => ({
       date: item.placedAt.toISOString().split('T')[0],
       totalOrders: item._count.id,
       totalRevenue: Number(item._sum.totalAmount) || 0,
