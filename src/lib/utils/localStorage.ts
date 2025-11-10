@@ -3,11 +3,10 @@
  */
 
 import type {
-  Cart,
-  CartItem,
   TableNumber,
   CustomerAuth,
 } from '@/lib/types/customer';
+import type { LocalCart } from '@/lib/types/cart';
 
 // Storage keys
 const STORAGE_KEYS = {
@@ -17,10 +16,10 @@ const STORAGE_KEYS = {
 } as const;
 
 /**
- * Get cart key for specific merchant
+ * Get cart key for specific merchant and mode
  */
-function getCartKey(merchantCode: string): string {
-  return `${STORAGE_KEYS.CART_PREFIX}${merchantCode}`;
+function getCartKey(merchantCode: string, mode: 'dinein' | 'takeaway' = 'dinein'): string {
+  return `${STORAGE_KEYS.CART_PREFIX}${merchantCode}_${mode}`;
 }
 
 /**
@@ -35,30 +34,19 @@ function getTableKey(merchantCode: string): string {
 // ============================================================================
 
 /**
- * Get cart for specific merchant
+ * Get cart for specific merchant and mode
+ * @param merchantCode - Merchant identifier
+ * @param mode - Order mode (defaults to 'dinein')
  */
-export function getCart(merchantCode: string): Cart | null {
+export function getCart(merchantCode: string, mode: 'dinein' | 'takeaway' = 'dinein'): LocalCart | null {
   if (typeof window === 'undefined') return null;
 
   try {
-    const key = getCartKey(merchantCode);
+    const key = getCartKey(merchantCode, mode);
     const data = localStorage.getItem(key);
     if (!data) return null;
 
-    const cart = JSON.parse(data) as Cart;
-    
-    // Convert string IDs back to bigint
-    cart.merchantId = BigInt(cart.merchantId);
-    cart.items = cart.items.map(item => ({
-      ...item,
-      menuId: BigInt(item.menuId),
-      addons: item.addons.map(addon => ({
-        ...addon,
-        id: BigInt(addon.id),
-        addonItemId: BigInt(addon.addonItemId),
-      })),
-    }));
-
+    const cart = JSON.parse(data) as LocalCart;
     return cart;
   } catch (error) {
     console.error('Error getting cart:', error);
@@ -69,170 +57,55 @@ export function getCart(merchantCode: string): Cart | null {
 /**
  * Save cart for specific merchant
  */
-export function saveCart(cart: Cart): void {
+export function saveCart(cart: LocalCart): void {
   if (typeof window === 'undefined') return;
 
   try {
-    const key = getCartKey(cart.merchantCode);
+    const key = getCartKey(cart.merchantCode, cart.mode);
+    localStorage.setItem(key, JSON.stringify(cart));
     
-    // Convert bigint to string for JSON serialization
-    const serializable = {
-      ...cart,
-      merchantId: cart.merchantId.toString(),
-      items: cart.items.map(item => ({
-        ...item,
-        menuId: item.menuId.toString(),
-        addons: item.addons.map(addon => ({
-          ...addon,
-          id: addon.id.toString(),
-          addonItemId: addon.addonItemId.toString(),
-        })),
-      })),
-      updatedAt: new Date().toISOString(),
-    };
-
-    localStorage.setItem(key, JSON.stringify(serializable));
+    // Dispatch custom event for cross-component sync
+    window.dispatchEvent(new CustomEvent('cartUpdated', { detail: cart }));
   } catch (error) {
     console.error('Error saving cart:', error);
   }
 }
 
 /**
- * Clear cart for specific merchant
+ * Clear cart for specific merchant and mode
  */
-export function clearCart(merchantCode: string): void {
+export function clearCart(merchantCode: string, mode: 'dinein' | 'takeaway' = 'dinein'): void {
   if (typeof window === 'undefined') return;
 
   try {
-    const key = getCartKey(merchantCode);
+    const key = getCartKey(merchantCode, mode);
     localStorage.removeItem(key);
+    
+    // Dispatch event
+    window.dispatchEvent(new CustomEvent('cartUpdated', { detail: null }));
   } catch (error) {
     console.error('Error clearing cart:', error);
   }
 }
 
 /**
- * Add item to cart
+ * Get cart total price
  */
-export function addToCart(
-  merchantCode: string,
-  merchantId: bigint,
-  mode: 'dinein' | 'takeaway',
-  item: CartItem,
-  tableNumber?: string
-): void {
-  let cart = getCart(merchantCode);
-
-  if (!cart) {
-    cart = {
-      merchantCode,
-      merchantId,
-      mode,
-      tableNumber,
-      items: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-  }
-
-  // Update mode and table number if changed
-  cart.mode = mode;
-  cart.tableNumber = tableNumber;
-
-  // Check if same item with same addons exists
-  const existingIndex = cart.items.findIndex(
-    (cartItem) =>
-      cartItem.menuId === item.menuId &&
-      JSON.stringify(cartItem.addons) === JSON.stringify(item.addons) &&
-      cartItem.notes === item.notes
-  );
-
-  if (existingIndex >= 0) {
-    // Update quantity
-    cart.items[existingIndex].quantity += item.quantity;
-    cart.items[existingIndex].subtotal =
-      cart.items[existingIndex].price * cart.items[existingIndex].quantity +
-      cart.items[existingIndex].addons.reduce(
-        (sum, addon) => sum + addon.price * addon.quantity,
-        0
-      );
-  } else {
-    // Add new item
-    cart.items.push(item);
-  }
-
-  saveCart(cart);
-}
-
-/**
- * Update cart item quantity
- */
-export function updateCartItemQuantity(
-  merchantCode: string,
-  itemIndex: number,
-  quantity: number
-): void {
-  const cart = getCart(merchantCode);
-  if (!cart) return;
-
-  if (quantity <= 0) {
-    // Remove item
-    cart.items.splice(itemIndex, 1);
-  } else {
-    // Update quantity and subtotal
-    cart.items[itemIndex].quantity = quantity;
-    cart.items[itemIndex].subtotal =
-      cart.items[itemIndex].price * quantity +
-      cart.items[itemIndex].addons.reduce(
-        (sum, addon) => sum + addon.price * addon.quantity,
-        0
-      );
-  }
-
-  saveCart(cart);
-}
-
-/**
- * Update cart item notes
- */
-export function updateCartItemNotes(
-  merchantCode: string,
-  itemIndex: number,
-  notes: string
-): void {
-  const cart = getCart(merchantCode);
-  if (!cart) return;
-
-  cart.items[itemIndex].notes = notes;
-  saveCart(cart);
-}
-
-/**
- * Remove item from cart
- */
-export function removeFromCart(merchantCode: string, itemIndex: number): void {
-  const cart = getCart(merchantCode);
-  if (!cart) return;
-
-  cart.items.splice(itemIndex, 1);
-  saveCart(cart);
-}
-
-/**
- * Get cart total
- */
-export function getCartTotal(merchantCode: string): number {
-  const cart = getCart(merchantCode);
+export function getCartTotal(merchantCode: string, mode: 'dinein' | 'takeaway' = 'dinein'): number {
+  const cart = getCart(merchantCode, mode);
   if (!cart) return 0;
 
-  return cart.items.reduce((sum, item) => sum + item.subtotal, 0);
+  return cart.items.reduce((sum, item) => {
+    const addonsTotal = item.addons?.reduce((addonSum, addon) => addonSum + addon.price, 0) || 0;
+    return sum + (item.price + addonsTotal) * item.quantity;
+  }, 0);
 }
 
 /**
  * Get cart item count
  */
-export function getCartItemCount(merchantCode: string): number {
-  const cart = getCart(merchantCode);
+export function getCartItemCount(merchantCode: string, mode: 'dinein' | 'takeaway' = 'dinein'): number {
+  const cart = getCart(merchantCode, mode);
   if (!cart) return 0;
 
   return cart.items.reduce((sum, item) => sum + item.quantity, 0);

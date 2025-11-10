@@ -3,32 +3,53 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { getCart } from '@/lib/utils/localStorage';
-import type { Cart } from '@/lib/types/customer';
+import { formatCurrency } from '@/lib/utils/format';
+import type { LocalCart } from '@/lib/types/cart';
 
 interface FloatingCartButtonProps {
   merchantCode: string;
+  mode?: 'dinein' | 'takeaway';
 }
 
 /**
- * Floating Cart Button - Bottom Right
+ * GENFITY - Floating Cart Button Component
  * 
- * Based on FRONTEND_SPECIFICATION.md:
- * - Position: fixed bottom-right
- * - Size: 110x64px
- * - Background: #FF6B35 with box-shadow
- * - Content: cart icon + item count + total price
- * - Hide if cart empty
- * - Pulsing animation on item add
+ * Fixed bottom-right button showing cart item count and total price.
+ * Navigates to cart review page on click. Auto-updates via localStorage events.
+ * 
+ * @specification FRONTEND_SPECIFICATION.md - FLOATING CART BUTTON
+ * 
+ * Design specs:
+ * - Position: Fixed bottom-right (bottom: 16px, right: 16px)
+ * - Size: 110px × 64px
+ * - Background: #FF6B35 (bg-primary)
+ * - Shadow: 0 4px 12px rgba(255, 107, 53, 0.4) (shadow-floating)
+ * - z-index: 50 (below header z-100)
+ * - Border-radius: 12px
+ * 
+ * Content:
+ * - Line 1: "[count] Item" (12px, weight 500, rgba(255,255,255,0.8))
+ * - Line 2: "Rp[total]" (14px, weight 700, white)
+ * 
+ * Behavior:
+ * - Hide when cart is empty
+ * - Pulse animation on item add
+ * - Hover: Darken (#E55A2B) + scale(1.05)
+ * - Click: Navigate to /:merchantCode/view-order?mode=[mode]
+ * 
+ * @param {string} merchantCode - Merchant identifier for routing
+ * @param {string} mode - Order mode: "dinein" or "takeaway"
  */
-export default function FloatingCartButton({ merchantCode }: FloatingCartButtonProps) {
+export default function FloatingCartButton({ merchantCode, mode }: FloatingCartButtonProps) {
   const router = useRouter();
-  const [cart, setCart] = useState<Cart | null>(null);
+  const [cart, setCart] = useState<LocalCart | null>(null);
   const [pulse, setPulse] = useState(false);
 
   useEffect(() => {
     // Load cart from localStorage
     const loadCart = () => {
-      const cartData = getCart(merchantCode);
+      const currentMode = mode || 'dinein';
+      const cartData = getCart(merchantCode, currentMode);
       setCart(cartData);
     };
 
@@ -49,7 +70,7 @@ export default function FloatingCartButton({ merchantCode }: FloatingCartButtonP
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('cartUpdated', handleStorageChange);
     };
-  }, [merchantCode]);
+  }, [merchantCode, mode]);
 
   // Don't show if cart is empty
   if (!cart || cart.items.length === 0) {
@@ -59,39 +80,44 @@ export default function FloatingCartButton({ merchantCode }: FloatingCartButtonP
   // Calculate total items and price
   const totalItems = cart.items.reduce((sum, item) => sum + item.quantity, 0);
   const totalPrice = cart.items.reduce((sum, item) => {
-    const addOnsTotal = item.addons?.reduce((addOnSum: number, addOn: { price: number }) => addOnSum + addOn.price, 0) || 0;
+    const addOnsTotal = item.addons?.reduce((addOnSum, addOn) => addOnSum + addOn.price, 0) || 0;
     return sum + ((item.price + addOnsTotal) * item.quantity);
   }, 0);
 
   const handleClick = () => {
-    router.push(`/${merchantCode}/view-order`);
+    const modeParam = mode || cart.mode || 'dinein';
+    router.push(`/${merchantCode}/view-order?mode=${modeParam}`);
   };
 
   return (
     <button
       onClick={handleClick}
-      className={`fixed bottom-6 right-4 w-[110px] h-16 bg-[#FF6B35] rounded-[32px] shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 z-50 flex flex-col items-center justify-center text-white ${
-        pulse ? 'animate-pulse' : ''
-      }`}
-      style={{
-        boxShadow: '0 4px 12px rgba(255, 107, 53, 0.3)',
-      }}
+      className={`
+        fixed bottom-4 right-4 z-50
+        flex flex-col items-center justify-center
+        w-[110px] h-16
+        bg-primary text-white
+        rounded-xl
+        shadow-floating
+        hover:bg-primary-hover
+        hover:scale-105
+        active:scale-95
+        transition-all duration-200
+        ${pulse ? 'animate-pulse' : ''}
+      `}
+      aria-label={`View cart: ${totalItems} items, total ${formatCurrency(totalPrice)}`}
     >
-      {/* Cart Icon with Badge */}
-      <div className="relative mb-1">
-        <span className="text-2xl">🛒</span>
-        {/* Item Count Badge */}
-        <div className="absolute -top-1 -right-1 w-5 h-5 bg-[#1A1A1A] rounded-full flex items-center justify-center">
-          <span className="text-[10px] font-bold text-white">
-            {totalItems}
-          </span>
-        </div>
-      </div>
-
-      {/* Total Price - 14px/700 */}
-      <span className="text-sm font-bold">
-        Rp{totalPrice.toLocaleString('id-ID')}
+      {/* Item count - 12px/500/rgba(255,255,255,0.8) */}
+      <span className="text-xs font-medium text-white/80">
+        {totalItems} Item
+      </span>
+      
+      {/* Total price - 14px/700/white */}
+      <span className="text-sm font-bold text-white mt-0.5">
+        {formatCurrency(totalPrice)}
       </span>
     </button>
   );
 }
+
+

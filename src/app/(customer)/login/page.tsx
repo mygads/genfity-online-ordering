@@ -20,8 +20,6 @@ function LoginForm() {
   const [showAuthChoice, setShowAuthChoice] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -53,6 +51,7 @@ function LoginForm() {
 
   /**
    * Handle login form submission
+   * Simple login with email + password only
    */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,14 +59,13 @@ function LoginForm() {
     setIsLoading(true);
 
     try {
-      // Call customer login API
+      // Call customer login API (email + password only)
       const response = await fetch('/api/public/auth/customer-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: email.trim(),
-          name: name.trim() || undefined,
-          phone: phone.trim() || undefined,
+          password: password.trim(),
         }),
       });
 
@@ -89,7 +87,7 @@ function LoginForm() {
         router.push(decodeURIComponent(ref));
       } else if (merchant) {
         const modeParam = mode ? `?mode=${mode}` : '';
-        router.push(`/${merchant}/home${modeParam}`);
+        router.push(`/${merchant}/order${modeParam}`);
       } else {
         router.push('/profile');
       }
@@ -110,12 +108,12 @@ function LoginForm() {
             <span className="text-2xl font-bold text-[#1A1A1A]">GENFITY</span>
           </Link>
           <h1 className="text-[28px] font-bold text-[#1A1A1A] mb-2">
-            {showAuthChoice ? 'Selamat Datang' : 'Masuk ke Akun Anda'}
+            {showAuthChoice ? 'Selamat Datang' : 'Masuk ke Akun'}
           </h1>
           <p className="text-sm text-[#666666]">
             {showAuthChoice 
               ? 'Silakan pilih cara melanjutkan'
-              : 'Masukkan email dan password untuk melanjutkan'
+              : 'Login untuk akses riwayat pesanan dan checkout lebih cepat'
             }
           </p>
         </div>
@@ -201,42 +199,6 @@ function LoginForm() {
                 </a>
               </div>
 
-              {/* Name Input (Optional for Auto-register) */}
-              <div>
-                <label
-                  htmlFor="name"
-                  className="block text-sm font-semibold text-[#1A1A1A] mb-2"
-                >
-                  Nama Lengkap <span className="text-[#999999] font-normal">(opsional)</span>
-                </label>
-                <input
-                  id="name"
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full h-12 px-4 text-sm border border-[#E0E0E0] rounded-lg text-[#1A1A1A] placeholder-[#999999] focus:outline-none focus:ring-2 focus:ring-[#FF6B35] focus:border-transparent transition-all"
-                  placeholder="Muhammad Yoga Adi Saputra"
-                />
-              </div>
-
-              {/* Phone Input (Optional for Auto-register) */}
-              <div>
-                <label
-                  htmlFor="phone"
-                  className="block text-sm font-semibold text-[#1A1A1A] mb-2"
-                >
-                  Nomor Ponsel <span className="text-[#999999] font-normal">(opsional)</span>
-                </label>
-                <input
-                  id="phone"
-                  type="tel"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className="w-full h-12 px-4 text-sm border border-[#E0E0E0] rounded-lg text-[#1A1A1A] placeholder-[#999999] focus:outline-none focus:ring-2 focus:ring-[#FF6B35] focus:border-transparent transition-all"
-                  placeholder="0896-6817-6764"
-                />
-              </div>
-
               {/* Submit Button */}
               <button
                 type="submit"
@@ -256,7 +218,7 @@ function LoginForm() {
             </button>
 
             <p className="mt-4 text-xs text-center text-[#999999]">
-              Jika email belum terdaftar, akan otomatis dibuatkan akun baru
+              Belum punya akun? Buat akun saat checkout pembayaran
             </p>
           </div>
         )}

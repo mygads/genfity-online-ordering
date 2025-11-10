@@ -134,6 +134,52 @@
 
   --color-theme-purple-500: #7a5af8;
 
+  /* ========================================================================
+     GENFITY CUSTOM COLORS (from Frontend Specification)
+     Primary: #FF6B35 (Orange), Used for buttons, links, highlights
+     ======================================================================== */
+  
+  /* Primary Colors */
+  --color-primary: #ff6b35;
+  --color-primary-hover: #e55a2b;
+  --color-primary-light: #fff5f0;
+  --color-primary-lighter: #fffaf5;
+  --color-primary-disabled: #ffb399;
+  --color-primary-dark: #d14a1e;
+  
+  /* Secondary (Transparent primary for borders) */
+  --color-secondary: transparent;
+  --color-secondary-border: #ff6b35;
+  --color-secondary-hover-bg: #fff5f0;
+  
+  /* Text Colors */
+  --color-text-primary: #1a1a1a;
+  --color-text-secondary: #666666;
+  --color-text-tertiary: #999999;
+  --color-text-disabled: #cccccc;
+  
+  /* Background Colors */
+  --color-bg-primary: #ffffff;
+  --color-bg-secondary: #f5f5f5;
+  --color-bg-tertiary: #f9f9f9;
+  --color-bg-disabled: #f5f5f5;
+  
+  /* Border Colors */
+  --color-border-primary: #e0e0e0;
+  --color-border-secondary: #eeeeee;
+  --color-border-light: #f0f0f0;
+  --color-border-focus: #ff6b35;
+  
+  /* Semantic Colors (Extended from existing) */
+  --color-danger: #ff5252;
+  --color-danger-hover: #e04444;
+  --color-danger-light: #ffe5e5;
+  
+  /* Shadows (GENFITY specific) */
+  --shadow-card: 0 1px 4px rgba(0, 0, 0, 0.08);
+  --shadow-floating: 0 4px 12px rgba(255, 107, 53, 0.4);
+  --shadow-bottom-sheet: 0 -2px 8px rgba(0, 0, 0, 0.1);
+  
   --shadow-theme-md:
     0px 4px 8px -2px rgba(16, 24, 40, 0.1),
     0px 2px 4px -2px rgba(16, 24, 40, 0.06);
@@ -282,6 +328,63 @@
 
 
 @layer utilities {
+  /* GENFITY Custom Utilities */
+  .bg-primary {
+    background-color: var(--color-primary);
+  }
+  
+  .bg-primary-hover:hover {
+    background-color: var(--color-primary-hover);
+  }
+  
+  .bg-primary-light {
+    background-color: var(--color-primary-light);
+  }
+  
+  .bg-secondary {
+    background-color: var(--color-bg-secondary);
+  }
+  
+  .text-primary {
+    color: var(--color-primary);
+  }
+  
+  .text-primary-dark {
+    color: var(--color-text-primary);
+  }
+  
+  .text-secondary {
+    color: var(--color-text-secondary);
+  }
+  
+  .text-tertiary {
+    color: var(--color-text-tertiary);
+  }
+  
+  .border-primary {
+    border-color: var(--color-border-primary);
+  }
+  
+  .border-primary-focus {
+    border-color: var(--color-border-focus);
+  }
+  
+  .border-secondary {
+    border-color: var(--color-secondary-border);
+  }
+  
+  .ring-primary {
+    --tw-ring-color: var(--color-primary);
+  }
+  
+  .shadow-card {
+    box-shadow: var(--shadow-card);
+  }
+  
+  .shadow-floating {
+    box-shadow: var(--shadow-floating);
+  }
+  
   /* For Remove Date Icon */
   input[type="date"]::-webkit-inner-spin-button,
   input[type="time"]::-webkit-inner-spin-button,

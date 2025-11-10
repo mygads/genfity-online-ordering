@@ -1,128 +1,121 @@
 'use client';
 
-// Force dynamic rendering for useSearchParams
-export const dynamic = 'force-dynamic';
-
-import { useState, useEffect } from 'react';
-import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import Link from 'next/link';
-import {
-  getCart,
-  updateCartItemQuantity,
-  removeFromCart,
-} from '@/lib/utils/localStorage';
-import type { Cart, OrderMode } from '@/lib/types/customer';
+import { useEffect, useState } from 'react';
+import { useParams, useSearchParams, useRouter } from 'next/navigation';
+import { useCart } from '@/context/CartContext';
+import Header from '@/components/common/Header';
+import { formatCurrency } from '@/lib/utils/format';
 
 /**
- * Cart Review Page - Redesigned
+ * GENFITY - Cart Review Page
+ * /[merchantCode]/view-order
  * 
- * Based on FRONTEND_SPECIFICATION.md (Tasks 16-20):
- * - Fixed header 56px: back button, "Keranjang" title
- * - Order mode badge: emoji + mode name, table number for dine-in
- * - Cart items list: 70x70px image, name 14px/600, addons 12px, price 16px/700
- * - Quantity controls: minus/plus buttons 32x32px, number display
- * - Delete button: trash icon, red color
- * - Notes display: read-only, 12px/400
- * - Summary card: Subtotal + Total, 16px/700
- * - Bottom action button: "Lanjut Bayar" 48px #FF6B35
+ * Flow: Menu Browse → Cart Review → Payment → Order Summary
+ * 
+ * Features:
+ * - View cart items with details
+ * - Add order notes (catatan pemesanan)
+ * - Edit quantity or remove items
+ * - "Lanjut Bayar" button → /[merchantCode]/payment
  */
 export default function ViewOrderPage() {
   const params = useParams();
-  const router = useRouter();
   const searchParams = useSearchParams();
+  const router = useRouter();
   
   const merchantCode = params.merchantCode as string;
-  const mode = (searchParams.get('mode') || 'takeaway') as OrderMode;
-  
-  const [cart, setCart] = useState<Cart | null>(null);
+  const mode = searchParams.get('mode') || 'takeaway';
 
-  const loadCart = () => {
-    const cartData = getCart(merchantCode);
-    if (!cartData || cartData.items.length === 0) {
-      router.push(`/${merchantCode}/home?mode=${mode}`);
+  const { cart, removeItem, updateItem, getTotal, getItemCount, initializeCart } = useCart();
+  const [isLoading, setIsLoading] = useState(true);
+  const [orderNotes, setOrderNotes] = useState('');
+
+  // Initialize cart
+  useEffect(() => {
+    if (!cart || cart.merchantCode !== merchantCode || cart.mode !== mode) {
+      initializeCart(merchantCode, mode as 'dinein' | 'takeaway');
+    }
+    setIsLoading(false);
+  }, [cart, merchantCode, mode, initializeCart]);
+
+  const handleUpdateQuantity = (cartItemId: string, newQuantity: number) => {
+    if (newQuantity < 1) return;
+    updateItem(cartItemId, { quantity: newQuantity });
+  };
+
+  const handleRemoveItem = (cartItemId: string) => {
+    if (confirm('Hapus item dari pesanan?')) {
+      removeItem(cartItemId);
+    }
+  };
+
+  const handleCheckout = () => {
+    if (!cart || cart.items.length === 0) {
+      alert('Keranjang kosong');
       return;
     }
-    setCart(cartData);
-  };
 
-  useEffect(() => {
-    loadCart();
-    
-    // Listen for cart updates
-    const handleCartUpdate = () => loadCart();
-    window.addEventListener('cartUpdated', handleCartUpdate);
-    window.addEventListener('storage', handleCartUpdate);
-    
-    return () => {
-      window.removeEventListener('cartUpdated', handleCartUpdate);
-      window.removeEventListener('storage', handleCartUpdate);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [merchantCode]);
-
-  const handleUpdateQuantity = (index: number, newQuantity: number) => {
-    if (newQuantity < 1) return;
-    updateCartItemQuantity(merchantCode, index, newQuantity);
-    loadCart();
-  };
-
-  const handleRemoveItem = (index: number) => {
-    if (confirm('Hapus item ini dari keranjang?')) {
-      removeFromCart(merchantCode, index);
-      loadCart();
+    // Save order notes to localStorage for payment page
+    if (orderNotes.trim()) {
+      localStorage.setItem(`order_notes_${merchantCode}_${mode}`, orderNotes.trim());
     }
+
+    router.push(`/${merchantCode}/payment?mode=${mode}`);
   };
 
-  const formatCurrency = (amount: number) => {
-    return `Rp${amount.toLocaleString('id-ID')}`;
+  const handleAddMore = () => {
+    router.push(`/${merchantCode}/order?mode=${mode}`);
   };
 
-  if (!cart) {
+  if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-white">
-        <div className="text-center">
-          <div className="text-5xl mb-4">⏳</div>
-          <p className="text-[#666666]">Memuat keranjang...</p>
-        </div>
+        <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
   }
 
-  // Calculate totals
-  const subtotal = cart.items.reduce((sum: number, item) => sum + item.subtotal, 0);
-  const total = subtotal; // No service fee for MVP
+  const itemCount = getItemCount();
+  const total = getTotal();
 
   return (
-    <div className="min-h-screen bg-white pb-24">
-      {/* Fixed Header - 56px */}
-      <header className="h-14 bg-white border-b border-[#E0E0E0] px-4 flex items-center justify-between sticky top-0 z-[100]">
-        {/* Left: Back Button */}
-        <Link href={`/${merchantCode}/home?mode=${mode}`} className="flex items-center gap-2 text-[#1A1A1A]">
-          <span className="text-xl">←</span>
-          <span className="text-sm font-medium">Kembali</span>
-        </Link>
+    <div className="flex flex-col min-h-screen bg-white">
+      {/* Header */}
+      <Header
+        title="Keranjang"
+        showBack
+        onBack={() => router.back()}
+      />
 
-        {/* Center: Title */}
-        <h1 className="text-base font-bold text-[#1A1A1A]">Keranjang</h1>
-
-        {/* Right: Placeholder for symmetry */}
-        <div className="w-16" />
-      </header>
-
-      {/* Order Mode Badge */}
-      <div className="px-4 pt-4 pb-3">
-        <div className="p-3 bg-[#FFF5F0] border border-[#FF6B35] rounded-lg flex items-center gap-3">
-          <span className="text-2xl">{mode === 'dinein' ? '🍽️' : '🛍️'}</span>
-          <div className="flex-1">
-            <p className="text-sm font-semibold text-[#1A1A1A]">
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto pb-32">
+        {/* Mode Information */}
+        <div className="p-4 bg-secondary border-b border-neutral-200">
+          <div className="mb-3">
+            <p className="text-xs font-semibold text-tertiary mb-1">Tipe Pemesanan</p>
+            <p className="text-sm font-semibold text-primary-dark">
               {mode === 'dinein' ? 'Makan di Tempat' : 'Ambil Sendiri'}
             </p>
-            {cart.tableNumber && (
-              <p className="text-xs text-[#666666]">Meja #{cart.tableNumber}</p>
-            )}
+          </div>
+          
+          {cart?.tableNumber && mode === 'dinein' && (
+            <>
+              <div className="h-px bg-neutral-200 my-3" />
+              <div>
+                <p className="text-xs font-semibold text-tertiary mb-1">Nomor Meja</p>
+                <p className="text-sm font-semibold text-primary-dark">
+                  Meja #{cart.tableNumber}
+                </p>
+              </div>
+            </>
+          )}
+
+          <div className="h-px bg-neutral-200 my-3" />
+          <div>
+            <p className="text-xs font-semibold text-tertiary mb-1">Diambil</p>
+            <p className="text-sm font-semibold text-primary-dark">Sekarang</p>
           </div>
         </div>
-      </div>
 
       {/* Cart Items List */}
       <main className="px-4 pb-4">
