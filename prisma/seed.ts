@@ -11,34 +11,239 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🌱 Seeding database...');
 
-  // Check if super admin already exists
+  // ============================================
+  // 1. CREATE SUPER ADMIN
+  // ============================================
+  let superAdmin;
   const existingAdmin = await prisma.user.findUnique({
     where: { email: 'admin@genfity.com' },
   });
 
   if (existingAdmin) {
     console.log('✅ Super Admin already exists');
-    return;
+    superAdmin = existingAdmin;
+  } else {
+    const hashedPassword = await bcrypt.hash('Admin@123456', 10);
+
+    superAdmin = await prisma.user.create({
+      data: {
+        name: 'Super Admin',
+        email: 'admin@genfity.com',
+        passwordHash: hashedPassword,
+        role: 'SUPER_ADMIN',
+        isActive: true,
+        mustChangePassword: false,
+      },
+    });
+
+    console.log('✅ Super Admin created:');
+    console.log('   Email: admin@genfity.com');
+    console.log('   Password: Admin@123456');
+    console.log('   ⚠️  Please change this password in production!');
   }
 
-  // Create Super Admin
-  const hashedPassword = await bcrypt.hash('Admin@123456', 10);
-
-  const superAdmin = await prisma.user.create({
-    data: {
-      name: 'Super Admin',
-      email: 'admin@genfity.com',
-      passwordHash: hashedPassword,
-      role: 'SUPER_ADMIN',
-      isActive: true,
-      mustChangePassword: false,
-    },
+  // ============================================
+  // 2. CREATE SAMPLE MERCHANT
+  // ============================================
+  const existingMerchant = await prisma.merchant.findUnique({
+    where: { code: 'KOPI001' },
   });
 
-  console.log('✅ Super Admin created:');
-  console.log('   Email: admin@genfity.com');
-  console.log('   Password: Admin@123456');
-  console.log('   ⚠️  Please change this password in production!');
+  let merchant;
+  if (existingMerchant) {
+    console.log('✅ Sample Merchant already exists');
+    merchant = existingMerchant;
+  } else {
+    merchant = await prisma.merchant.create({
+      data: {
+        code: 'KOPI001',
+        name: 'Kopi Kenangan',
+        email: 'info@kopikenangan.com',
+        phone: '+61412345678',
+        address: '123 Main Street',
+        city: 'Sydney',
+        state: 'NSW',
+        postalCode: '2000',
+        country: 'Australia',
+        description: 'Premium Indonesian Coffee Shop',
+        isActive: true,
+        enableTax: true,
+        taxPercentage: 10.0,
+        currency: 'AUD',
+      },
+    });
+
+    console.log('✅ Sample Merchant created:');
+    console.log('   Code: KOPI001');
+    console.log('   Name: Kopi Kenangan');
+  }
+
+  // ============================================
+  // 3. CREATE MERCHANT OWNER USER
+  // ============================================
+  const existingOwner = await prisma.user.findUnique({
+    where: { email: 'owner@kopikenangan.com' },
+  });
+
+  if (!existingOwner) {
+    const ownerPassword = await bcrypt.hash('Owner@123456', 10);
+
+    const merchantOwner = await prisma.user.create({
+      data: {
+        name: 'Merchant Owner',
+        email: 'owner@kopikenangan.com',
+        passwordHash: ownerPassword,
+        role: 'MERCHANT_OWNER',
+        isActive: true,
+        mustChangePassword: false,
+      },
+    });
+
+    // Link owner to merchant
+    await prisma.merchantUser.create({
+      data: {
+        merchantId: merchant.id,
+        userId: merchantOwner.id,
+        role: 'OWNER',
+      },
+    });
+
+    console.log('✅ Merchant Owner created:');
+    console.log('   Email: owner@kopikenangan.com');
+    console.log('   Password: Owner@123456');
+  } else {
+    console.log('✅ Merchant Owner already exists');
+  }
+
+  // ============================================
+  // 4. CREATE MENU CATEGORIES
+  // ============================================
+  const categories = [
+    { name: 'Coffee', description: 'Premium coffee beverages', sortOrder: 1 },
+    { name: 'Tea', description: 'Fresh tea selections', sortOrder: 2 },
+    { name: 'Snacks', description: 'Light bites and pastries', sortOrder: 3 },
+  ];
+
+  const createdCategories = [];
+  for (const cat of categories) {
+    const existing = await prisma.menuCategory.findFirst({
+      where: {
+        merchantId: merchant.id,
+        name: cat.name,
+      },
+    });
+
+    if (existing) {
+      createdCategories.push(existing);
+    } else {
+      const created = await prisma.menuCategory.create({
+        data: {
+          merchantId: merchant.id,
+          name: cat.name,
+          description: cat.description,
+          sortOrder: cat.sortOrder,
+          isActive: true,
+        },
+      });
+      createdCategories.push(created);
+      console.log(`✅ Category created: ${cat.name}`);
+    }
+  }
+
+  // ============================================
+  // 5. CREATE MENU ITEMS
+  // ============================================
+  const menuItems = [
+    // Coffee
+    {
+      categoryName: 'Coffee',
+      name: 'Espresso',
+      description: 'Strong and bold single shot',
+      price: 4.5,
+      imageUrl: null,
+    },
+    {
+      categoryName: 'Coffee',
+      name: 'Cappuccino',
+      description: 'Classic Italian coffee with steamed milk',
+      price: 5.5,
+      imageUrl: null,
+    },
+    {
+      categoryName: 'Coffee',
+      name: 'Flat White',
+      description: 'Smooth microfoam with double shot',
+      price: 5.0,
+      imageUrl: null,
+    },
+    {
+      categoryName: 'Coffee',
+      name: 'Iced Latte',
+      description: 'Chilled espresso with cold milk',
+      price: 6.0,
+      imageUrl: null,
+    },
+    // Tea
+    {
+      categoryName: 'Tea',
+      name: 'Green Tea Latte',
+      description: 'Japanese matcha with steamed milk',
+      price: 5.5,
+      imageUrl: null,
+    },
+    {
+      categoryName: 'Tea',
+      name: 'Thai Tea',
+      description: 'Sweet and creamy Thai-style tea',
+      price: 5.0,
+      imageUrl: null,
+    },
+    // Snacks
+    {
+      categoryName: 'Snacks',
+      name: 'Croissant',
+      description: 'Buttery French pastry',
+      price: 4.0,
+      imageUrl: null,
+    },
+    {
+      categoryName: 'Snacks',
+      name: 'Banana Bread',
+      description: 'Moist homemade banana bread',
+      price: 3.5,
+      imageUrl: null,
+    },
+  ];
+
+  for (const item of menuItems) {
+    const category = createdCategories.find((c) => c.name === item.categoryName);
+    if (!category) continue;
+
+    const existing = await prisma.menu.findFirst({
+      where: {
+        merchantId: merchant.id,
+        name: item.name,
+      },
+    });
+
+    if (!existing) {
+      await prisma.menu.create({
+        data: {
+          merchantId: merchant.id,
+          categoryId: category.id,
+          name: item.name,
+          description: item.description,
+          price: item.price,
+          imageUrl: item.imageUrl,
+          isActive: true,
+          trackStock: false,
+          stockQty: 0,
+        },
+      });
+      console.log(`✅ Menu item created: ${item.name}`);
+    }
+  }
+
   console.log('');
   console.log('🎉 Database seeded successfully!');
 }

@@ -93,12 +93,24 @@ class AuthService {
       refreshExpiresAt,
     });
 
-    // Step 5: Generate JWT with session ID in payload
+    // Step 6: Update last login timestamp
+    await userRepository.updateLastLogin(user.id);
+
+    // Get merchant info if user is merchant owner/staff
+    let merchantId: bigint | undefined;
+    let merchantIdString: string | undefined;
+    if (user.merchantUsers && user.merchantUsers.length > 0) {
+      merchantId = user.merchantUsers[0].merchantId;
+      merchantIdString = merchantId.toString();
+    }
+
+    // Step 5: Generate JWT with session ID and merchantId in payload
     const accessToken = generateAccessToken({
       userId: user.id,
       sessionId: session.id,
       role: user.role,
       email: user.email,
+      merchantId,
     });
 
     const refreshToken = generateRefreshToken({
@@ -111,14 +123,8 @@ class AuthService {
       token: accessToken,
     });
 
-    // Step 6: Update last login timestamp
-    await userRepository.updateLastLogin(user.id);
-
-    // Get merchant info if user is merchant owner/staff
-    let merchantId: string | undefined;
-    if (user.merchantUsers && user.merchantUsers.length > 0) {
-      merchantId = user.merchantUsers[0].merchantId.toString();
-    }
+    // Calculate expiresIn (in seconds)
+    const expiresIn = parseInt(process.env.JWT_EXPIRY || '3600');
 
     return {
       user: {
@@ -126,10 +132,11 @@ class AuthService {
         name: user.name,
         email: user.email,
         role: user.role,
-        merchantId,
+        merchantId: merchantIdString,
       },
       accessToken,
       refreshToken,
+      expiresIn,
     };
   }
 

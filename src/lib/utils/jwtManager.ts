@@ -11,6 +11,7 @@ interface DecodedToken {
   sessionId: string;
   role: UserRole;
   email: string;
+  merchantId?: string;
   iat: number;
   exp: number;
 }
@@ -35,6 +36,7 @@ export function generateAccessToken(payload: Omit<JWTPayload, 'iat' | 'exp'>): s
     sessionId: payload.sessionId.toString(),
     role: payload.role,
     email: payload.email,
+    ...(payload.merchantId && { merchantId: payload.merchantId.toString() }),
   };
   
   return jwt.sign(serializedPayload, JWT_SECRET, {
@@ -76,6 +78,7 @@ export function verifyAccessToken(token: string): JWTPayload | null {
       sessionId: BigInt(decoded.sessionId),
       role: decoded.role,
       email: decoded.email,
+      merchantId: decoded.merchantId ? BigInt(decoded.merchantId) : undefined,
       iat: decoded.iat,
       exp: decoded.exp,
     };

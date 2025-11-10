@@ -20,6 +20,7 @@ export interface LoginResponse {
   };
   accessToken: string;
   refreshToken?: string;
+  expiresIn?: number; // Token expiry in seconds
 }
 
 export interface JWTPayload {
@@ -27,6 +28,7 @@ export interface JWTPayload {
   sessionId: bigint;
   role: UserRole;
   email: string;
+  merchantId?: bigint;
   iat?: number;
   exp?: number;
 }

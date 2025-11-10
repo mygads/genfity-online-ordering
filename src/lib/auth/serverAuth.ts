@@ -30,17 +30,18 @@ export async function getAuthUser(): Promise<AuthUser | null> {
 
     const secret = process.env.JWT_SECRET || 'your-secret-key';
     const payload = jwt.verify(token, secret) as {
-      sub: string;
+      userId: string;
+      sessionId: string;
       role: string;
-      mid?: string;
-      sid: string;
+      email: string;
+      merchantId?: string;
     };
 
     return {
-      id: BigInt(payload.sub),
+      id: BigInt(payload.userId),
       role: payload.role as UserRole,
-      merchantId: payload.mid ? BigInt(payload.mid) : undefined,
-      sessionId: BigInt(payload.sid),
+      merchantId: payload.merchantId ? BigInt(payload.merchantId) : undefined,
+      sessionId: BigInt(payload.sessionId),
     };
   } catch (error) {
     console.error('Auth verification failed:', error);
@@ -58,7 +59,7 @@ export async function requireAuth(redirectTo?: string): Promise<AuthUser> {
     const params = redirectTo
       ? `?redirect=${encodeURIComponent(redirectTo)}`
       : '';
-    redirect(`/dashboard/signin${params}`);
+    redirect(`/admin/login${params}`);
   }
 
   return user;
