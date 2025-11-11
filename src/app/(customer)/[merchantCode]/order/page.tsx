@@ -111,7 +111,7 @@ export default function MenuBrowsePage() {
         mode={mode as 'dinein' | 'takeaway'}
         showBackButton={true}
         onBack={() => {
-          // Back to merchant mode selection if coming from there
+          localStorage.removeItem(`mode_${merchantCode}`);
           router.push(`/${merchantCode}`);
         }}
         title={merchantCode.toUpperCase()}

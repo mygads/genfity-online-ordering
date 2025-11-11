@@ -69,7 +69,7 @@ export default function MerchantModePage({ params }: MerchantPageProps) {
       // Check localStorage for cached mode
       const cachedMode = localStorage.getItem(`mode_${code}`);
       if (cachedMode === 'dinein' || cachedMode === 'takeaway') {
-        router.push(`/${code}/order?mode=${cachedMode}`);
+        router.replace(`/${code}/order?mode=${cachedMode}`);
         return;
       }
       
@@ -103,16 +103,16 @@ export default function MerchantModePage({ params }: MerchantPageProps) {
     }
   };
 
-  const handleModeSelect = (mode: 'dinein' | 'takeaway') => {
+  const handleModeSelect = (selectedMode: 'dinein' | 'takeaway') => {
     // Save mode to localStorage
-    localStorage.setItem(`mode_${merchantCode}`, mode);
+    localStorage.setItem(`mode_${merchantCode}`, selectedMode);
     
     // For dine-in, show table number modal first
-    if (mode === 'dinein') {
+    if (selectedMode === 'dinein') {
       setShowTableModal(true);
     } else {
       // For takeaway, go directly to order page
-      router.push(`/${merchantCode}/order?mode=${mode}`);
+      router.replace(`/${merchantCode}/order?mode=${selectedMode}`);
     }
   };
 

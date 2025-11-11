@@ -68,8 +68,14 @@ export default function CustomerHeader({
   const handleBack = () => {
     if (onBack) {
       onBack();
-    } else {
+      return;
+    }
+    // Check if there's history to go back to
+    if (window.history.length > 1) {
       router.back();
+    } else {
+      // No history, go to landing page
+      router.push('/');
     }
   };
 
