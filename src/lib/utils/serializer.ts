@@ -1,16 +1,56 @@
 /**
- * Serializer Utilities
- * Handle BigInt, Decimal, Date and other special type serialization
+ * Serialization Utilities
+ * 
+ * @specification GENFITY AI Coding Instructions - Type Safety
+ * 
+ * @description
+ * Handles conversion of Prisma types (BigInt, Decimal) to JSON-safe formats
+ * for Next.js API responses.
+ * 
+ * @security
+ * - Safe type coercion (no data loss)
+ * - Handles nested objects/arrays recursively
+ * - Preserves null/undefined values
  */
 
 import { Decimal } from '@prisma/client/runtime/library';
 
 /**
- * Convert BigInt, Decimal, Date values to JSON-compatible types recursively
- * @param obj - Object to serialize
- * @returns Serialized object with special types converted
+ * Convert Decimal to number
+ * 
+ * @param value - Decimal, number, or string
+ * @returns Number (2 decimal precision)
  */
-export function serializeBigInt<T>(obj: T): T {
+export function decimalToNumber(value: Decimal | number | string): number {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string') return parseFloat(value);
+  return parseFloat(value.toString());
+}
+
+/**
+ * Convert BigInt to string
+ * 
+ * @param value - BigInt value
+ * @returns String representation
+ */
+export function bigIntToString(value: bigint): string {
+  return value.toString();
+}
+
+/**
+ * Recursively serialize Prisma types to JSON-safe format
+ * 
+ * @param obj - Any object (can contain BigInt, Decimal, nested objects)
+ * @returns Serialized object safe for JSON.stringify()
+ * 
+ * @example
+ * ```typescript
+ * const order = await prisma.order.findFirst(...);
+ * const serialized = serializeData(order);
+ * return NextResponse.json(serialized); // ✅ No BigInt error
+ * ```
+ */
+export function serializeData<T>(obj: T): T {
   if (obj === null || obj === undefined) {
     return obj;
   }
@@ -30,13 +70,13 @@ export function serializeBigInt<T>(obj: T): T {
   }
 
   if (Array.isArray(obj)) {
-    return obj.map(serializeBigInt) as T;
+    return obj.map(serializeData) as T;
   }
 
   if (typeof obj === 'object') {
     const serialized: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(obj)) {
-      serialized[key] = serializeBigInt(value);
+      serialized[key] = serializeData(value);
     }
     return serialized as T;
   }

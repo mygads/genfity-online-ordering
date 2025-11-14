@@ -13,21 +13,21 @@ interface TableNumberModalProps {
 /**
  * GENFITY Table Number Selection Modal
  * 
+ * @specification GENFITY AI Coding Instructions - localStorage integration
+ * 
  * @description
  * Modal for dine-in customers to input their table number.
  * Table number is saved to localStorage and used throughout the ordering flow.
  * 
- * @specification
- * - Full-screen overlay modal
- * - Numeric input for table number (1-99)
- * - Save to localStorage: table:{merchantCode}
- * - Auto-fill from localStorage if exists
- * - Reset after checkout success
- * 
  * @localStorage
  * - Key: genfity_table_{merchantCode}
  * - Value: { merchantCode, tableNumber, setAt }
- * - Cleared after order completed or user returns to merchant page
+ * - Also saved to cart context via initializeCart()
+ * 
+ * @security
+ * - Input validation: 1-999 range
+ * - Number type input (numeric keyboard on mobile)
+ * - Auto-focus for better UX
  */
 export default function TableNumberModal({
   merchantCode,
@@ -38,38 +38,70 @@ export default function TableNumberModal({
   const [tableNumber, setTableNumber] = useState('');
   const [error, setError] = useState('');
 
-  // Load saved table number on mount
+  /**
+   * Load saved table number on mount
+   * 
+   * @description
+   * Auto-fill input if user previously selected a table number.
+   * Prevents re-entering on page refresh.
+   */
   useEffect(() => {
     if (isOpen) {
       const saved = getTableNumber(merchantCode);
       if (saved && saved.tableNumber) {
         setTableNumber(saved.tableNumber);
+        console.log('📍 Auto-filled table number:', saved.tableNumber);
       }
     }
   }, [isOpen, merchantCode]);
 
+  /**
+   * Handle table number confirmation
+   * 
+   * @specification GENFITY AI Coding Instructions - Input validation
+   * 
+   * @validation
+   * - Required: Cannot be empty
+   * - Range: 1-999 (adjust based on merchant max table)
+   * - Type: Integer only (no decimals)
+   * 
+   * @flow
+   * 1. Validate input
+   * 2. Save to localStorage (genfity_table_{merchantCode})
+   * 3. Trigger onConfirm callback (navigate to order page)
+   * 4. Cart context will load table number via initializeCart()
+   */
   const handleConfirm = () => {
     setError('');
 
-    // Validate input
+    // Validate input - Required field
     if (!tableNumber.trim()) {
       setError('Masukkan nomor meja');
       return;
     }
 
+    // Validate input - Range & type
     const num = parseInt(tableNumber);
     if (isNaN(num) || num < 1 || num > 999) {
       setError('Nomor meja tidak valid (1-999)');
       return;
     }
 
-    // Save to localStorage
+    // ✅ Save to localStorage (will be loaded by CartContext)
     saveTableNumber(merchantCode, tableNumber);
+    console.log('✅ Table number saved to localStorage:', tableNumber);
 
-    // Callback
+    // ✅ Trigger callback (parent will navigate to /order?mode=dinein)
     onConfirm(tableNumber);
   };
 
+  /**
+   * Handle Enter key press for better UX
+   * 
+   * @description
+   * Allows users to confirm by pressing Enter key instead of clicking button.
+   * Standard UX pattern for single-field forms.
+   */
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       handleConfirm();
@@ -80,16 +112,16 @@ export default function TableNumberModal({
 
   return (
     <>
-      {/* Overlay */}
+      {/* Overlay - 50% black opacity */}
       <div
         className="fixed inset-0 bg-black/50 z-50 animate-fadeIn"
         onClick={onClose}
       />
 
-      {/* Modal */}
+      {/* Modal - Bottom sheet style */}
       <div className="fixed inset-x-0 bottom-0 z-50 max-w-[420px] mx-auto animate-slideUp">
         <div className="bg-white rounded-t-2xl shadow-2xl">
-          {/* Handle Bar */}
+          {/* Handle Bar - Swipe indicator */}
           <div className="flex justify-center pt-3 pb-2">
             <div className="w-12 h-1 bg-gray-300 rounded-full" />
           </div>
@@ -109,13 +141,13 @@ export default function TableNumberModal({
               </p>
             </div>
 
-            {/* Input */}
+            {/* Input - 56px height (standard GENFITY) */}
             <div className="mb-6">
               <label
                 htmlFor="tableNumber"
                 className="block text-xs font-semibold text-gray-700 mb-2"
               >
-                Nomor Meja
+                Nomor Meja <span className="text-red-500">*</span>
               </label>
               <input
                 id="tableNumber"
@@ -131,14 +163,16 @@ export default function TableNumberModal({
                 className="w-full h-14 px-4 text-2xl text-center font-bold border-2 border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all"
               />
               {error && (
-                <p className="mt-2 text-sm text-red-600">{error}</p>
+                <p className="mt-2 text-sm text-red-600" role="alert">
+                  ⚠️ {error}
+                </p>
               )}
               <p className="mt-2 text-xs text-gray-500 text-center">
-                Nomor meja dapat ditemukan di meja Anda
+                📍 Nomor meja dapat ditemukan di meja Anda
               </p>
             </div>
 
-            {/* Buttons */}
+            {/* Buttons - 48px height (standard GENFITY) */}
             <div className="flex gap-3">
               <button
                 onClick={onClose}
@@ -157,7 +191,7 @@ export default function TableNumberModal({
         </div>
       </div>
 
-      {/* Animations */}
+      {/* Animations - CSS-in-JS for scope */}
       <style jsx>{`
         @keyframes fadeIn {
           from {

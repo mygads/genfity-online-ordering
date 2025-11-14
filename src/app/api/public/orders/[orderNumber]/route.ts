@@ -1,22 +1,46 @@
 /**
- * Public Order Tracking API
- * GET /api/public/orders/[orderNumber] - Track order status
+ * Public Order Detail API
+ * GET /api/public/orders/[orderNumber]
+ * 
+ * ✅ FIXED: Import default export instead of named export
+ * 
+ * @specification STEP_04_API_ENDPOINTS.txt - Order Endpoints
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import orderService from '@/lib/services/OrderService';
+import orderService from '@/lib/services/OrderService'; // ✅ FIXED: Default import
 
 /**
  * GET /api/public/orders/[orderNumber]
- * Public endpoint to track order by order number
+ * Retrieve order details by order number
+ * @public No authentication required
  */
 export async function GET(
   request: NextRequest,
   context: { params: Promise<Record<string, string>> }
 ) {
   const params = await context.params;
+  
   try {
-    const order = await orderService.getOrderByNumber(params.orderNumber);
+    const { orderNumber } = params;
+    
+    // Validate order number
+    if (!orderNumber) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'VALIDATION_ERROR',
+          message: 'Order number is required',
+          statusCode: 400,
+        },
+        { status: 400 }
+      );
+    }
+
+    console.log('📦 [API] Fetching order:', orderNumber);
+
+    // ✅ FIXED: Now works with default import
+    const order = await orderService.getOrderByNumber(orderNumber);
 
     if (!order) {
       return NextResponse.json(
@@ -30,43 +54,29 @@ export async function GET(
       );
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const orderData = order as any;
+    // Fetch order status history
+    const statusHistory = await orderService.getOrderStatusHistory(BigInt(order.id));
 
-    // Get status history
-    const statusHistory = await orderService.getOrderStatusHistory(orderData.id);
+    console.log('✅ [API] Order fetched successfully:', {
+      orderNumber: order.orderNumber,
+      status: order.status,
+      totalAmount: order.totalAmount,
+    });
 
+    // ✅ Return with serviceFeeAmount included
     return NextResponse.json({
       success: true,
       data: {
-        orderNumber: orderData.orderNumber,
-        status: orderData.status,
-        orderType: orderData.orderType,
-        tableNumber: orderData.tableNumber,
-        customerName: orderData.customerName,
-        subtotal: orderData.subtotal,
-        taxAmount: orderData.taxAmount,
-        totalAmount: orderData.totalAmount,
-        notes: orderData.notes,
-        placedAt: orderData.placedAt,
-        statusHistory: statusHistory.map((history: { fromStatus: string | null; toStatus: string; note: string | null; createdAt: Date }) => ({
-          fromStatus: history.fromStatus,
-          toStatus: history.toStatus,
-          note: history.note,
-          createdAt: history.createdAt,
-        })),
-        merchant: orderData.merchant ? {
-          name: orderData.merchant.name,
-          code: orderData.merchant.code,
-          phone: orderData.merchant.phone,
-          address: orderData.merchant.address,
-        } : null,
+        ...order,
+        serviceFeeAmount: order.serviceFeeAmount || 0,
+        statusHistory,
       },
       message: 'Order retrieved successfully',
       statusCode: 200,
     });
+
   } catch (error) {
-    console.error('Error tracking order:', error);
+    console.error('❌ [API] Get order error:', error);
 
     return NextResponse.json(
       {

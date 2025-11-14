@@ -7,6 +7,7 @@ import FloatingCartButton from '@/components/cart/FloatingCartButton';
 import MenuDetailModal from '@/components/menu/MenuDetailModal';
 import { formatCurrency } from '@/lib/utils/format';
 import Image from 'next/image';
+import { useCart } from '@/context/CartContext';
 
 interface MenuItem {
   id: number;
@@ -14,7 +15,7 @@ interface MenuItem {
   description: string;
   price: number;
   image_url: string | null;
-  stock: number;
+  stockQty: number;
   category_id: number;
 }
 
@@ -30,9 +31,10 @@ interface Category {
  * Features:
  * - Horizontal category tabs with scroll
  * - Menu grid with images, names, prices
- * - Search bar
- * - FloatingCartButton visible
- * - Click menu item → open MenuDetailModal
+ * - Click anywhere on card (including "Tambah" button) → open MenuDetailModal
+ * - FloatingCartButton visible when cart has items
+ * 
+ * @specification FRONTEND_SPECIFICATION.md
  */
 export default function MenuBrowsePage() {
   const params = useParams();
@@ -47,6 +49,7 @@ export default function MenuBrowsePage() {
   const [selectedCategory, setSelectedCategory] = useState<number | 'all'>('all');
   const [isLoading, setIsLoading] = useState(true);
   const [selectedMenu, setSelectedMenu] = useState<MenuItem | null>(null);
+  const { initializeCart } = useCart();
 
   // Fetch categories
   useEffect(() => {
@@ -76,10 +79,11 @@ export default function MenuBrowsePage() {
         const data = await response.json();
         
         if (data.success) {
+          console.log('🍽️ Menu Items Loaded:', data.data.length);
           setMenuItems(data.data);
         }
       } catch (error) {
-        console.error('Error fetching menu items:', error);
+        console.error('❌ Error fetching menu items:', error);
       } finally {
         setIsLoading(false);
       }
@@ -88,11 +92,21 @@ export default function MenuBrowsePage() {
     fetchMenuItems();
   }, [merchantCode, selectedCategory]);
 
-  // Filter by search
+  // Initialize cart on mount
+  useEffect(() => {
+    initializeCart(merchantCode, mode as 'dinein' | 'takeaway');
+  }, [merchantCode, mode, initializeCart]);
+
+  // Filter by search (placeholder for future search feature)
   const filteredMenuItems = menuItems;
 
+  /**
+   * Open menu detail modal
+   * Called when user clicks anywhere on menu card
+   */
   const handleMenuClick = (menu: MenuItem) => {
-    if (menu.stock > 0) {
+    if (menu.stockQty > 0) {
+      console.log('🔍 Opening modal for:', menu.name);
       setSelectedMenu(menu);
     }
   };
@@ -123,10 +137,10 @@ export default function MenuBrowsePage() {
           {categories.map((category) => (
             <button
               key={category.id}
-              onClick={() => setSelectedCategory(category.id)}
+              onClick={() => setSelectedCategory(category.id === -1 ? 'all' : category.id)}
               className={`
                 px-4 py-2 rounded-full whitespace-nowrap text-sm font-semibold transition-all
-                ${selectedCategory === category.id
+                ${(selectedCategory === 'all' && category.id === -1) || selectedCategory === category.id
                   ? 'bg-primary text-white'
                   : 'bg-secondary text-secondary hover:bg-primary-light'
                 }
@@ -163,7 +177,10 @@ export default function MenuBrowsePage() {
                 className={`
                   flex gap-3 p-3 bg-white rounded-lg border border-neutral-200 shadow-card
                   transition-all duration-200
-                  ${item.stock > 0 ? 'cursor-pointer hover:shadow-lg active:scale-[0.98]' : 'opacity-60'}
+                  ${item.stockQty > 0 
+                    ? 'cursor-pointer hover:shadow-lg active:scale-[0.98]' 
+                    : 'opacity-60 cursor-not-allowed'
+                  }
                 `}
               >
                 {/* Image */}
@@ -198,20 +215,22 @@ export default function MenuBrowsePage() {
                   </p>
                 </div>
 
-                {/* Add Button */}
-                <div className="flex-shrink-0 flex items-center">
-                  <button
-                    disabled={item.stock === 0}
+                {/* ✅ FIXED: Button sebagai visual indicator, tidak ada onClick terpisah */}
+                {/* Click handler ada di parent div, jadi klik button = klik card */}
+                <div className="shrink-0 flex items-center">
+                  <div
                     className={`
-                      w-[70px] h-9 rounded-lg text-xs font-semibold transition-all
-                      ${item.stock > 0
-                        ? 'bg-primary text-white hover:bg-primary-hover active:scale-95'
-                        : 'bg-neutral-200 text-tertiary cursor-not-allowed'
+                      w-[70px] h-9 rounded-lg text-xs font-semibold 
+                      flex items-center justify-center
+                      transition-all pointer-events-none
+                      ${item.stockQty > 0
+                        ? 'bg-primary text-white'
+                        : 'bg-neutral-200 text-tertiary'
                       }
                     `}
                   >
-                    {item.stock > 0 ? 'Tambah' : 'Habis'}
-                  </button>
+                    {item.stockQty > 0 ? 'Tambah' : 'Habis'}
+                  </div>
                 </div>
               </div>
             ))}

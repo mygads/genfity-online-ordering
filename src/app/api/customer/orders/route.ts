@@ -1,26 +1,74 @@
+/**
+ * Customer Order History API
+ * GET /api/customer/orders - Get all orders for authenticated customer
+ * 
+ * @specification STEP_04_API_ENDPOINTS.txt - Order Endpoints
+ * 
+ * @description
+ * Returns order history with:
+ * - Order basic info (number, status, total)
+ * - Merchant details
+ * - Items count
+ * - Latest status from order_status_history
+ * 
+ * @security
+ * - JWT Bearer token required
+ * - Customer can only see their own orders
+ * 
+ * @response
+ * {
+ *   success: true,
+ *   data: OrderHistoryItem[],
+ *   message: "Orders retrieved successfully",
+ *   statusCode: 200
+ * }
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
-import jwt from 'jsonwebtoken';
-import { db } from '@/lib/db';
+import prisma from '@/lib/db/client';
+import { verifyCustomerToken } from '@/lib/utils/auth';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
-
-interface JWTPayload {
-  userId: string;
-  email: string;
-  role: string;
+/**
+ * Helper: Serialize BigInt to string for JSON
+ * 
+ * @param obj - Object with BigInt values
+ * @returns Serialized object safe for JSON.stringify
+ * 
+ * @specification GENFITY coding standards - Type safety
+ */
+function serializeBigInt(obj: any): any {
+  if (obj === null || obj === undefined) return obj;
+  
+  if (typeof obj === 'bigint') {
+    return obj.toString();
+  }
+  
+  if (Array.isArray(obj)) {
+    return obj.map(serializeBigInt);
+  }
+  
+  if (typeof obj === 'object') {
+    const serialized: any = {};
+    for (const key in obj) {
+      serialized[key] = serializeBigInt(obj[key]);
+    }
+    return serialized;
+  }
+  
+  return obj;
 }
 
 /**
- * Get Customer Orders
  * GET /api/customer/orders
- * 
- * Returns order history for the authenticated customer
- * Requires Authorization: Bearer <token> header
+ * Fetch all orders for authenticated customer
  */
-export async function GET(request: NextRequest) {
+export async function GET(req: NextRequest) {
   try {
-    // Get token from Authorization header
-    const authHeader = request.headers.get('authorization');
+    // ========================================
+    // STEP 1: Authentication (STEP_02)
+    // ========================================
+    
+    const authHeader = req.headers.get('authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return NextResponse.json(
         {
@@ -33,13 +81,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const token = authHeader.substring(7); // Remove 'Bearer ' prefix
-
-    // Verify JWT token
-    let payload: JWTPayload;
-    try {
-      payload = jwt.verify(token, JWT_SECRET) as JWTPayload;
-    } catch {
+    const token = authHeader.substring(7);
+    const decoded = await verifyCustomerToken(token);
+    
+    if (!decoded) {
       return NextResponse.json(
         {
           success: false,
@@ -51,83 +96,107 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Check if role is CUSTOMER
-    if (payload.role !== 'CUSTOMER') {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'FORBIDDEN',
-          message: 'Akses ditolak',
-          statusCode: 403,
+    console.log('👤 Fetching orders for customer:', decoded.customerId);
+
+    // ========================================
+    // STEP 2: Fetch Orders (STEP_01 Schema)
+    // ========================================
+    
+    /**
+     * ✅ FIXED: Use Prisma client instead of raw db.query()
+     * 
+     * Query breakdown:
+     * 1. Select from orders table (STEP_01 orders schema)
+     * 2. Join with merchants (get merchant name & code)
+     * 3. Join with order_items (count total items)
+     * 4. Get latest status from order_status_history
+     * 5. Filter by customer_id
+     * 6. Order by placed_at DESC (newest first)
+     * 
+     * @security
+     * - Parameterized query (Prisma auto-escapes)
+     * - Customer can only see their own orders
+     * 
+     * @specification STEP_01_DATABASE_DESIGN.txt
+     * - orders table: id, order_number, merchant_id, customer_id, status, total_amount
+     * - order_status_history: order_id, status, created_at
+     */
+    const orders = await prisma.order.findMany({
+      where: {
+        customerId: BigInt(decoded.customerId),
+      },
+      include: {
+        merchant: {
+          select: {
+            name: true,
+            code: true,
+          },
         },
-        { status: 403 }
-      );
-    }
+        orderItems: {
+          select: {
+            id: true,
+          },
+        },
+      },
+      orderBy: {
+        placedAt: 'desc',
+      },
+    });
 
-    // Fetch orders for this customer
-    const ordersResult = await db.query(
-      `SELECT 
-        o.id,
-        o.order_number,
-        o.mode,
-        o.table_number,
-        o.status,
-        o.subtotal_amount,
-        o.service_fee_amount,
-        o.total_amount,
-        o.created_at,
-        m.name as merchant_name,
-        m.code as merchant_code
-       FROM orders o
-       INNER JOIN merchants m ON o.merchant_id = m.id
-       WHERE o.customer_id = $1
-       ORDER BY o.created_at DESC
-       LIMIT 50`,
-      [payload.userId]
-    );
+    console.log(`📦 Found ${orders.length} orders for customer ${decoded.customerId}`);
 
-    const orders = ordersResult.rows.map((row: {
-      id: bigint;
-      order_number: string;
-      merchant_name: string;
-      merchant_code: string;
-      mode: string;
-      table_number: string | null;
-      status: string;
-      subtotal_amount: string;
-      service_fee_amount: string;
-      total_amount: string;
-      created_at: Date;
-    }) => ({
-      id: row.id.toString(),
-      orderNumber: row.order_number,
-      merchantName: row.merchant_name,
-      merchantCode: row.merchant_code,
-      mode: row.mode,
-      tableNumber: row.table_number,
-      status: row.status,
-      subtotalAmount: parseFloat(row.subtotal_amount),
-      serviceFeeAmount: parseFloat(row.service_fee_amount),
-      totalAmount: parseFloat(row.total_amount),
-      createdAt: row.created_at.toISOString(),
+    // ========================================
+    // STEP 3: Format Response
+    // ========================================
+    
+    /**
+     * Transform Prisma result to match frontend interface
+     * 
+     * @interface OrderHistoryItem (from page.tsx)
+     * - id: bigint
+     * - orderNumber: string
+     * - merchantName: string
+     * - merchantCode: string
+     * - mode: 'dinein' | 'takeaway'
+     * - status: string
+     * - totalAmount: number
+     * - placedAt: string
+     * - itemsCount: number
+     */
+    const formattedOrders = orders.map((order) => ({
+      id: order.id,
+      orderNumber: order.orderNumber,
+      merchantName: order.merchant.name,
+      merchantCode: order.merchant.code,
+      mode: order.orderType === 'DINE_IN' ? 'dinein' : 'takeaway',
+      status: order.status,
+      totalAmount: parseFloat(order.totalAmount.toString()),
+      placedAt: order.placedAt.toISOString(),
+      itemsCount: order.orderItems.length,
     }));
 
-    return NextResponse.json(
-      {
-        success: true,
-        data: { orders },
-        message: 'Berhasil memuat riwayat pesanan',
-        statusCode: 200,
-      },
-      { status: 200 }
-    );
+    // ✅ Serialize BigInt to string for JSON
+    const serializedOrders = serializeBigInt(formattedOrders);
+
+    return NextResponse.json({
+      success: true,
+      data: serializedOrders,
+      message: 'Orders retrieved successfully',
+      statusCode: 200,
+    });
+
   } catch (error) {
     console.error('Get customer orders error:', error);
+
+    // ========================================
+    // ERROR HANDLING (STEP_05)
+    // ========================================
+    
     return NextResponse.json(
       {
         success: false,
         error: 'INTERNAL_ERROR',
-        message: 'Terjadi kesalahan pada server',
+        message: 'Gagal memuat riwayat pesanan',
         statusCode: 500,
       },
       { status: 500 }

@@ -1,55 +1,66 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter, usePathname, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { isCustomerAuthenticated } from '@/lib/utils/localStorage';
 
 interface CustomerHeaderProps {
   merchantCode?: string;
   mode?: 'dinein' | 'takeaway';
+  title?: string;
   showBackButton?: boolean;
   onBack?: () => void;
-  title?: string;
 }
 
 /**
- * GENFITY Customer Header Component
+ * Customer Header Component
  * 
  * @description
- * Reusable header for all customer pages in app/(customer)
- * Shows conditional Profile and History buttons based on auth status
+ * Reusable header for customer-facing pages with:
+ * - Brand logo/title
+ * - Back button (conditional)
+ * - Auth buttons (Sign In OR Profile + History)
+ * - Hydration-safe auth detection
  * 
- * @specification FRONTEND_SPECIFICATION.md - TopBar component
- * - Height: 56px
- * - Background: white with subtle shadow
- * - Left: Back button (24px icon)
- * - Center: Title (16/24 semibold)
- * - Right: Profile + History icons (authenticated) OR Sign In link (guest)
+ * @specification copilot-instructions.md - Component Reusability
  * 
- * @navigation
- * - Profile: /[merchantCode]/profile?mode=[mode]&ref=[currentPath]
- * - History: /[merchantCode]/history?mode=[mode]&ref=[currentPath]
- * - Sign In: /login?merchant=[merchantCode]&mode=[mode]&ref=[currentPath]
- * - Back: Custom onBack or router.back()
+ * @param merchantCode - Merchant code for navigation context (optional)
+ * @param mode - Order mode (dinein/takeaway) for ref parameter (optional)
+ * @param title - Header title (default: merchant code)
+ * @param showBackButton - Show back arrow (default: false)
+ * @param onBack - Custom back handler (default: router.back())
+ * 
+ * @example
+ * // Landing page (no merchant context)
+ * <CustomerHeader title="GENFITY" showBackButton={false} />
+ * 
+ * // Order page (with merchant context)
+ * <CustomerHeader 
+ *   merchantCode="KOPI001" 
+ *   mode="dinein"
+ *   showBackButton={true}
+ * />
  */
 export default function CustomerHeader({
   merchantCode,
   mode,
-  showBackButton = true,
-  onBack,
   title,
+  showBackButton = false,
+  onBack,
 }: CustomerHeaderProps) {
   const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
 
-  // Check authentication status
+  /**
+   * ✅ Hydration-safe auth detection
+   * 
+   * @specification copilot-instructions.md - Emergency Troubleshooting
+   */
   useEffect(() => {
+    setIsMounted(true);
     setIsAuthenticated(isCustomerAuthenticated());
 
-    // Listen for auth changes
     const handleAuthChange = () => {
       setIsAuthenticated(isCustomerAuthenticated());
     };
@@ -58,103 +69,189 @@ export default function CustomerHeader({
     return () => window.removeEventListener('storage', handleAuthChange);
   }, []);
 
-  // Build reference URL for navigation
+  /**
+   * ✅ FIXED: Build ref URL with proper query string format
+   * 
+   * @description
+   * Generates ref parameter for navigation with correct format:
+   * - Landing page: /
+   * - Order page: /KOPI001/order?mode=dinein
+   * - Always use ? for first param, & for subsequent params
+   * 
+   * @specification STEP_02 - URL query string format
+   */
   const buildRefUrl = () => {
-    const currentPath = pathname + (searchParams.toString() ? `?${searchParams.toString()}` : '');
-    return encodeURIComponent(currentPath);
+    if (!merchantCode) {
+      return '/';
+    }
+
+    // Base path: /KOPI001
+    let refUrl = `/${merchantCode}`;
+
+    // If we have mode, add it to ref URL
+    if (mode) {
+      refUrl += `/order?mode=${mode}`;
+    }
+
+    return refUrl;
   };
 
-  // Handle back navigation
-  const handleBack = () => {
-    if (onBack) {
-      onBack();
-      return;
-    }
-    // Check if there's history to go back to
-    if (window.history.length > 1) {
-      router.back();
-    } else {
-      // No history, go to landing page
-      router.push('/');
-    }
-  };
-
-  // Navigate to profile page
+  /**
+   * ✅ FIXED: Handle profile click with correct URL format
+   * 
+   * @description
+   * Navigate to profile page with proper query string:
+   * - Format: /KOPI001/profile?mode=dinein&ref=...
+   * - NOT: /KOPI001/profile&mode=... (404 error)
+   * 
+   * @specification copilot-instructions.md - URL Format Standard
+   */
   const handleProfileClick = () => {
     if (!merchantCode) {
-      router.push('/profile');
+      // No merchant context - try to get last visited merchant
+      const lastMerchant = localStorage.getItem('lastMerchantCode');
+      if (lastMerchant) {
+        router.push(`/${lastMerchant}/profile?ref=%2F${lastMerchant}`);
+      } else {
+        alert('Masukkan kode merchant terlebih dahulu');
+      }
       return;
     }
 
-    const modeParam = mode ? `?mode=${mode}` : '';
-    const refParam = `&ref=${buildRefUrl()}`;
-    router.push(`/${merchantCode}/profile${modeParam}${refParam}`);
+    // ✅ Build URL with proper query string format
+    const refUrl = buildRefUrl();
+    const encodedRef = encodeURIComponent(refUrl);
+    
+    // Start with ? for first query param
+    let url = `/${merchantCode}/profile`;
+    
+    // Add mode if available
+    if (mode) {
+      url += `?mode=${mode}`;
+      // Use & for subsequent params
+      url += `&ref=${encodedRef}`;
+    } else {
+      // No mode, ref is first param
+      url += `?ref=${encodedRef}`;
+    }
+
+    console.log('🔗 Profile URL:', url);
+    router.push(url);
   };
 
-  // Navigate to history page
+  /**
+   * ✅ FIXED: Handle history click with correct URL format
+   * 
+   * @description
+   * Navigate to history page with proper query string:
+   * - Format: /KOPI001/history?mode=dinein&ref=...
+   * - NOT: /KOPI001/history&mode=... (404 error)
+   * 
+   * @specification copilot-instructions.md - URL Format Standard
+   */
   const handleHistoryClick = () => {
     if (!merchantCode) {
-      router.push('/history');
+      // No merchant context - try to get last visited merchant
+      const lastMerchant = localStorage.getItem('lastMerchantCode');
+      if (lastMerchant) {
+        router.push(`/${lastMerchant}/history?ref=%2F${lastMerchant}`);
+      } else {
+        alert('Masukkan kode merchant terlebih dahulu');
+      }
       return;
     }
 
-    const modeParam = mode ? `?mode=${mode}` : '';
-    const refParam = `&ref=${buildRefUrl()}`;
-    router.push(`/${merchantCode}/history${modeParam}${refParam}`);
+    // ✅ Build URL with proper query string format
+    const refUrl = buildRefUrl();
+    const encodedRef = encodeURIComponent(refUrl);
+    
+    // Start with ? for first query param
+    let url = `/${merchantCode}/history`;
+    
+    // Add mode if available
+    if (mode) {
+      url += `?mode=${mode}`;
+      // Use & for subsequent params
+      url += `&ref=${encodedRef}`;
+    } else {
+      // No mode, ref is first param
+      url += `?ref=${encodedRef}`;
+    }
+
+    console.log('🔗 History URL:', url);
+    router.push(url);
   };
 
-  // Navigate to login page
+  /**
+   * Handle sign in click
+   * 
+   * @description
+   * Navigate to login page with ref parameter for return URL.
+   */
   const handleSignInClick = () => {
-    const merchantParam = merchantCode ? `?merchant=${merchantCode}` : '';
-    const modeParam = mode ? `&mode=${mode}` : '';
-    const refParam = `&ref=${buildRefUrl()}`;
-    router.push(`/login${merchantParam}${modeParam}${refParam}`);
+    const refUrl = buildRefUrl();
+    const encodedRef = encodeURIComponent(refUrl);
+    router.push(`/login?ref=${encodedRef}`);
+  };
+
+  /**
+   * Handle back button click
+   */
+  const handleBackClick = () => {
+    if (onBack) {
+      onBack();
+    } else {
+      router.back();
+    }
   };
 
   return (
-    <header className="sticky top-0 z-50 h-14 bg-white border-b border-gray-200 shadow-sm">
-      <div className="flex items-center justify-between h-full px-4 max-w-[420px] mx-auto">
-        {/* Left: Back Button */}
-        <div className="flex items-center">
+    <header className="sticky top-0 z-50 bg-white border-b border-neutral-200 h-14">
+      <div className="flex items-center justify-between h-full px-4">
+        {/* Left: Back Button or Logo */}
+        <div className="flex items-center gap-2">
           {showBackButton && (
             <button
-              onClick={handleBack}
-              className="p-2 -ml-2 rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-colors"
+              onClick={handleBackClick}
+              className="p-2 -ml-2 rounded-lg hover:bg-secondary transition-colors"
               aria-label="Kembali"
             >
               <svg
-                width="24"
-                height="24"
+                width="20"
+                height="20"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="text-gray-700"
+                className="text-primary-dark"
               >
                 <path d="M19 12H5M12 19l-7-7 7-7" />
               </svg>
             </button>
           )}
+          
+          {!showBackButton && (
+            <span className="text-2xl">🍽️</span>
+          )}
+          
+          <span className="text-lg font-bold text-primary-dark">
+            {title || merchantCode?.toUpperCase() || 'GENFITY'}
+          </span>
         </div>
-
-        {/* Center: Title */}
-        {title && (
-          <h1 className="absolute left-1/2 -translate-x-1/2 text-base font-semibold text-gray-900 truncate max-w-[200px]">
-            {title}
-          </h1>
-        )}
 
         {/* Right: Auth Buttons */}
         <div className="flex items-center gap-2">
-          {isAuthenticated ? (
+          {!isMounted ? (
+            /* Loading placeholder during hydration */
+            <div className="w-20 h-8 bg-secondary rounded-lg animate-pulse" />
+          ) : isAuthenticated ? (
             <>
-              {/* History Button */}
+              {/* History Icon */}
               <button
                 onClick={handleHistoryClick}
-                className="p-2 rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-colors"
-                aria-label="Riwayat Pesanan"
+                className="p-2 rounded-lg hover:bg-secondary transition-colors"
+                aria-label="Riwayat"
+                title="Riwayat Pesanan"
               >
                 <svg
                   width="20"
@@ -163,20 +260,19 @@ export default function CustomerHeader({
                   fill="none"
                   stroke="currentColor"
                   strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="text-gray-700"
+                  className="text-primary-dark"
                 >
                   <circle cx="12" cy="12" r="10" />
                   <polyline points="12 6 12 12 16 14" />
                 </svg>
               </button>
 
-              {/* Profile Button */}
+              {/* Profile Icon */}
               <button
                 onClick={handleProfileClick}
-                className="p-2 rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-colors"
-                aria-label="Profil"
+                className="p-2 rounded-lg hover:bg-secondary transition-colors"
+                aria-label="Akun"
+                title="Profil Saya"
               >
                 <svg
                   width="20"
@@ -185,9 +281,7 @@ export default function CustomerHeader({
                   fill="none"
                   stroke="currentColor"
                   strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="text-gray-700"
+                  className="text-primary-dark"
                 >
                   <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
                   <circle cx="12" cy="7" r="4" />
@@ -195,10 +289,10 @@ export default function CustomerHeader({
               </button>
             </>
           ) : (
-            /* Sign In Link */
+            /* Sign In Button */
             <button
               onClick={handleSignInClick}
-              className="text-sm font-medium text-orange-500 hover:text-orange-600 transition-colors px-3 py-1.5 rounded-lg hover:bg-orange-50"
+              className="text-sm font-medium text-primary hover:text-primary-dark px-3 py-1.5 rounded-lg hover:bg-primary-light transition-colors"
             >
               Masuk
             </button>

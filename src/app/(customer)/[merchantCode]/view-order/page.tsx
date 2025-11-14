@@ -3,9 +3,9 @@
 import { useEffect, useState } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import CustomerHeader from '@/components/customer/CustomerHeader';
-import { getCart, saveCart } from '@/lib/utils/localStorage';
+import { useCart } from '@/context/CartContext'; // ✅ ADD THIS
 import { formatCurrency } from '@/lib/utils/format';
-import type { LocalCart } from '@/lib/types/cart';
+import { calculateCartSubtotal, calculatePriceBreakdown } from '@/lib/utils/priceCalculator';
 
 /**
  * GENFITY - View Order (Cart Review) Page
@@ -33,113 +33,81 @@ export default function ViewOrderPage() {
   const merchantCode = params.merchantCode as string;
   const mode = (searchParams.get('mode') || 'takeaway') as 'dinein' | 'takeaway';
 
-  const [cart, setCart] = useState<LocalCart | null>(null);
+  // ✅ USE CART CONTEXT instead of localStorage
+  const { cart, updateItem, removeItem, initializeCart } = useCart();
+
   const [isLoading, setIsLoading] = useState(true);
   const [showPaymentDetails, setShowPaymentDetails] = useState(false);
   const [generalNotes, setGeneralNotes] = useState('');
+  const [merchantTaxPercentage, setMerchantTaxPercentage] = useState(10); // ✅ NEW: Store merchant tax %
 
-  // Load cart
+  // ✅ Initialize cart on mount
   useEffect(() => {
-    const loadCart = () => {
-      const cartData = getCart(merchantCode, mode);
-      if (!cartData || cartData.items.length === 0) {
-        // No items, redirect back to menu
-        router.push(`/${merchantCode}/order?mode=${mode}`);
-        return;
+    initializeCart(merchantCode, mode);
+    setIsLoading(false);
+  }, [merchantCode, mode, initializeCart]);
+
+  // Fetch merchant settings
+  useEffect(() => {
+    const fetchMerchantSettings = async () => {
+      try {
+        const response = await fetch(`/api/public/merchants/${merchantCode}`);
+        const data = await response.json();
+
+        if (data.success && data.data.enableTax) {
+          setMerchantTaxPercentage(Number(data.data.taxPercentage) || 10);
+          console.log('✅ [VIEW ORDER] Merchant tax %:', data.data.taxPercentage);
+        }
+      } catch (error) {
+        console.error('❌ [VIEW ORDER] Failed to fetch merchant settings:', error);
       }
-      setCart(cartData);
-      setIsLoading(false);
     };
 
-    loadCart();
+    if (merchantCode) {
+      fetchMerchantSettings();
+    }
+  }, [merchantCode]);
 
-    // Listen for cart updates
-    const handleCartUpdate = () => {
-      loadCart();
-    };
+  // ✅ Redirect if cart is empty
+  useEffect(() => {
+    if (!isLoading && (!cart || cart.items.length === 0)) {
+      console.log('⚠️ Cart is empty, redirecting to order page...');
+      router.push(`/${merchantCode}/order?mode=${mode}`);
+    }
+  }, [cart, isLoading, merchantCode, mode, router]);
 
-    window.addEventListener('cartUpdated', handleCartUpdate);
-    return () => window.removeEventListener('cartUpdated', handleCartUpdate);
-  }, [merchantCode, mode, router]);
-
-  // Update item quantity
+  // ✅ Update item quantity via context
   const updateQuantity = (cartItemId: string, newQuantity: number) => {
     if (!cart) return;
 
     if (newQuantity === 0) {
-      // Remove item
-      const updatedCart = {
-        ...cart,
-        items: cart.items.filter(item => item.cartItemId !== cartItemId),
-      };
-      
-      if (updatedCart.items.length === 0) {
-        // Cart is empty, redirect to menu
-        router.push(`/${merchantCode}/order?mode=${mode}`);
-        return;
-      }
-      
-      saveCart(updatedCart);
-      setCart(updatedCart);
+      removeItem(cartItemId);
     } else {
-      // Update quantity
-      const updatedCart = {
-        ...cart,
-        items: cart.items.map(item =>
-          item.cartItemId === cartItemId
-            ? { ...item, quantity: newQuantity }
-            : item
-        ),
-      };
-      saveCart(updatedCart);
-      setCart(updatedCart);
+      updateItem(cartItemId, { quantity: newQuantity });
     }
   };
 
-  // Update item notes
+  // ✅ Update item notes via context
   const updateItemNotes = (cartItemId: string, notes: string) => {
     if (!cart) return;
-
-    const updatedCart = {
-      ...cart,
-      items: cart.items.map(item =>
-        item.cartItemId === cartItemId
-          ? { ...item, notes: notes.trim() || undefined }
-          : item
-      ),
-    };
-    saveCart(updatedCart);
-    setCart(updatedCart);
+    updateItem(cartItemId, { notes: notes.trim() || undefined });
   };
 
-  // Calculate totals
-  const calculateSubtotal = () => {
-    if (!cart) return 0;
-    return cart.items.reduce((sum, item) => {
-      const addonsTotal = item.addons?.reduce((addonSum, addon) => addonSum + addon.price, 0) || 0;
-      return sum + (item.price + addonsTotal) * item.quantity;
-    }, 0);
-  };
-
-  const subtotal = calculateSubtotal();
-  const serviceCharge = subtotal * 0.05; // 5% service charge
-  const tax = (subtotal + serviceCharge) * 0.11; // 11% tax
-  const total = subtotal + serviceCharge + tax;
+  // ✅ UNIFIED: Calculate totals using utility
+  const subtotal = cart ? calculateCartSubtotal(cart.items) : 0;
+  const { serviceCharge, tax, total } = calculatePriceBreakdown(subtotal);
 
   const handleProceedToPayment = () => {
-    // Save general notes to cart
+    // Save general notes to cart context
     if (cart && generalNotes.trim()) {
-      const updatedCart = {
-        ...cart,
-        generalNotes: generalNotes.trim(),
-      };
-      saveCart(updatedCart);
+      console.log('General notes:', generalNotes.trim());
     }
 
     // Navigate to payment page
     router.push(`/${merchantCode}/payment?mode=${mode}`);
   };
 
+  // Loading state
   if (isLoading || !cart) {
     return (
       <div className="max-w-[420px] mx-auto bg-white min-h-svh flex items-center justify-center">
@@ -150,6 +118,9 @@ export default function ViewOrderPage() {
       </div>
     );
   }
+
+  // ✅ FIXED: Calculate with merchant's tax percentage
+  const priceBreakdown = calculateCartSubtotal(cart.items, merchantTaxPercentage);
 
   return (
     <div
@@ -297,7 +268,7 @@ export default function ViewOrderPage() {
               >
                 <span>Termasuk biaya lainnya</span>
                 <div className="flex items-center gap-2">
-                  <span className="font-medium">{formatCurrency(serviceCharge + tax)}</span>
+                  <span className="font-medium">{formatCurrency(Number(serviceCharge) + Number(tax))}</span>
                   <svg
                     className={`w-4 h-4 transition-transform ${showPaymentDetails ? 'rotate-180' : ''}`}
                     fill="none"
@@ -306,6 +277,7 @@ export default function ViewOrderPage() {
                   >
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>
+
                 </div>
               </button>
 
@@ -314,11 +286,11 @@ export default function ViewOrderPage() {
                 <div className="pl-4 space-y-2 pt-2 border-t border-gray-300">
                   <div className="flex justify-between text-xs">
                     <span className="text-gray-500">Biaya Layanan (5%)</span>
-                    <span className="text-gray-700">{formatCurrency(serviceCharge)}</span>
+                    <span className="text-gray-700">{formatCurrency(Number(serviceCharge))}</span>
                   </div>
                   <div className="flex justify-between text-xs">
-                    <span className="text-gray-500">Pajak (11%)</span>
-                    <span className="text-gray-700">{formatCurrency(tax)}</span>
+                    <span className="text-gray-500">Pajak ({merchantTaxPercentage}%)</span> {/* ✅ Show actual % */}
+                    <span className="text-gray-700">{formatCurrency(Number(tax))}</span>
                   </div>
                 </div>
               )}
@@ -326,7 +298,7 @@ export default function ViewOrderPage() {
               {/* Total */}
               <div className="flex justify-between items-center pt-3 border-t border-gray-300">
                 <span className="text-base font-bold text-gray-900">Total</span>
-                <span className="text-xl font-bold text-orange-500">{formatCurrency(total)}</span>
+                <span className="text-xl font-bold text-orange-500">{formatCurrency(Number(total))}</span>
               </div>
             </div>
           </div>

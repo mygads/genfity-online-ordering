@@ -34,6 +34,10 @@ interface OrderHistoryItem {
  * @navigation
  * - Back: Returns to ref or profile page
  * - Order card: /[merchantCode]/order-summary-cash?orderNumber={number}&mode={mode}
+ * 
+ * @security
+ * - JWT Bearer token authentication
+ * - Hydration-safe rendering (prevents SSR/CSR mismatch)
  */
 export default function OrderHistoryPage() {
   const router = useRouter();
@@ -46,12 +50,37 @@ export default function OrderHistoryPage() {
   
   const [orders, setOrders] = useState<OrderHistoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [auth] = useState(getCustomerAuth());
+  const [auth, setAuth] = useState<ReturnType<typeof getCustomerAuth> | null>(null);
   const [filter, setFilter] = useState<'all' | 'pending' | 'completed' | 'cancelled'>('all');
+  
+  // ✅ FIX: Add hydration guard to prevent SSR/CSR mismatch
+  const [isMounted, setIsMounted] = useState(false);
 
+  /**
+   * ✅ FIXED: Hydration-safe authentication check
+   * 
+   * @description
+   * Prevents hydration mismatch by:
+   * 1. Setting isMounted flag AFTER client-side hydration completes
+   * 2. Loading auth from localStorage only on client-side
+   * 3. Showing loading state during SSR → CSR transition
+   * 
+   * @specification Emergency Troubleshooting - copilot-instructions.md
+   * 
+   * @security
+   * - localStorage only accessed on client-side (after mount)
+   * - No SSR/CSR data mismatch
+   */
   useEffect(() => {
-    // Check authentication
-    if (!auth) {
+    // ✅ 1. Mark component as mounted (client-side only)
+    setIsMounted(true);
+    
+    // ✅ 2. Load auth from localStorage (safe now)
+    const customerAuth = getCustomerAuth();
+    setAuth(customerAuth);
+    
+    // ✅ 3. Redirect if not authenticated
+    if (!customerAuth) {
       const currentPath = window.location.pathname + window.location.search;
       const loginUrl = merchantCode
         ? `/login?merchant=${merchantCode}${mode ? `&mode=${mode}` : ''}&ref=${encodeURIComponent(currentPath)}`
@@ -60,18 +89,24 @@ export default function OrderHistoryPage() {
       return;
     }
 
-    fetchOrders();
+    // ✅ 4. Fetch orders if authenticated
+    fetchOrders(customerAuth);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router, merchantCode, mode]);
 
-  const fetchOrders = async () => {
-    if (!auth) return;
-
+  /**
+   * Fetch orders from API
+   * 
+   * @param customerAuth - Customer authentication object
+   * 
+   * @specification STEP_04_API_ENDPOINTS.txt - Order Endpoints
+   */
+  const fetchOrders = async (customerAuth: NonNullable<ReturnType<typeof getCustomerAuth>>) => {
     setIsLoading(true);
     try {
       const response = await fetch('/api/customer/orders', {
         headers: {
-          'Authorization': `Bearer ${auth.accessToken}`,
+          'Authorization': `Bearer ${customerAuth.accessToken}`,
         },
       });
 
@@ -142,7 +177,17 @@ export default function OrderHistoryPage() {
     return true;
   });
 
-  if (!auth) return null;
+  // ✅ HYDRATION FIX: Show loading during SSR → CSR transition
+  if (!isMounted || !auth) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-sm text-gray-600">Memuat halaman...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

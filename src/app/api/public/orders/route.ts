@@ -1,13 +1,32 @@
 /**
  * Public Order Creation API
  * POST /api/public/orders - Create new order
+ * 
+ * @specification STEP_04_API_ENDPOINTS.txt - Order Endpoints
+ * 
+ * @description
+ * Public endpoint for creating orders with auto customer registration:
+ * 1. Validate merchant exists & active
+ * 2. Validate customer info & order items
+ * 3. Create order via OrderService
+ * 4. Return serialized order data (Decimal → number)
+ * 
+ * @security
+ * - Merchant validation before order creation
+ * - Input sanitization & validation
+ * - Proper error handling (400, 404, 500)
+ * 
+ * @response
+ * - success: true
+ * - data: Order object (all Decimals converted to numbers)
+ * - message: Success message
+ * - statusCode: 201
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import orderService from '@/lib/services/OrderService';
 import { ValidationError } from '@/lib/constants/errors';
 import prisma from '@/lib/db/client';
-import { serializeBigInt } from '@/lib/utils/serializer';
 
 /**
  * POST /api/public/orders
@@ -17,7 +36,11 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
-    // Validate merchantCode (lookup merchant)
+    // ========================================
+    // VALIDATION (STEP_04 - Input Validation)
+    // ========================================
+    
+    // Validate merchantCode
     if (!body.merchantCode) {
       return NextResponse.json(
         {
@@ -30,24 +53,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Get merchant by code
+    // Get merchant by code (STEP_01 merchants table)
     const merchant = await prisma.merchant.findUnique({
       where: { code: body.merchantCode },
     });
 
-    if (!merchant) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'NOT_FOUND',
-          message: `Merchant with code '${body.merchantCode}' not found`,
-          statusCode: 404,
-        },
-        { status: 404 }
-      );
-    }
-
-    if (!merchant.isActive) {
+    if (!merchant || !merchant.isActive) {
       return NextResponse.json(
         {
           success: false,
@@ -59,6 +70,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Validate customer info
     if (!body.customerName || !body.customerEmail) {
       return NextResponse.json(
         {
@@ -71,6 +83,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Validate orderType (STEP_01 orders table - ENUM)
     if (!body.orderType || !['DINE_IN', 'TAKEAWAY'].includes(body.orderType)) {
       return NextResponse.json(
         {
@@ -83,6 +96,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Validate items array
     if (!body.items || !Array.isArray(body.items) || body.items.length === 0) {
       return NextResponse.json(
         {
@@ -95,37 +109,46 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Create order
-    console.log('[ORDER] Creating order for merchant:', merchant.id.toString(), merchant.name);
-    console.log('[ORDER] Items:', body.items);
+    // ========================================
+    // ORDER CREATION (STEP_06 Business Logic)
+    // ========================================
     
+    console.log('[ORDER] Creating order for merchant:', merchant.id.toString(), merchant.name);
+    
+    // Create order (already serialized by service)
     const order = await orderService.createOrder({
-      merchantId: merchant.id, // Use merchant.id from lookup
+      merchantId: merchant.id,
       orderType: body.orderType,
       tableNumber: body.tableNumber,
       customerName: body.customerName,
       customerEmail: body.customerEmail,
       customerPhone: body.customerPhone,
-      items: body.items.map((item: { menuId: string; quantity: number; selectedAddons?: string[]; specialInstructions?: string }) => ({
+      items: body.items.map((item: { 
+        menuId: string; 
+        quantity: number; 
+        selectedAddons?: string[]; 
+        notes?: string;
+      }) => ({
         menuId: BigInt(item.menuId),
         quantity: item.quantity,
         selectedAddons: item.selectedAddons?.map((id: string) => BigInt(id)) || [],
-        specialInstructions: item.specialInstructions,
+        specialInstructions: item.notes,
       })),
       notes: body.notes,
     });
 
-    console.log('[ORDER] Order created successfully:', order);
+    console.log('[ORDER] Order created successfully:', order.orderNumber);
 
+    // ✅ NO CHANGES NEEDED - Service returns serialized data
     return NextResponse.json({
       success: true,
-      data: serializeBigInt(order),
+      data: order, // ✅ Already serialized by OrderService
       message: 'Order created successfully',
       statusCode: 201,
-    });
+    }, { status: 201 });
+
   } catch (error) {
-    console.error('[ORDER] Error creating order:', error);
-    console.error('[ORDER] Error stack:', error instanceof Error ? error.stack : 'No stack');
+    console.error('[ORDER] Error:', error);
 
     if (error instanceof ValidationError) {
       return NextResponse.json(
