@@ -35,8 +35,9 @@ const ADMIN_AUTH_KEY = 'genfity_admin_auth';
 /**
  * Get admin auth data from localStorage
  * Returns null if not authenticated or token expired
+ * Auto-redirects to login if expired (for admin routes only)
  */
-export function getAdminAuth(): AdminAuth | null {
+export function getAdminAuth(options?: { skipRedirect?: boolean }): AdminAuth | null {
   if (typeof window === 'undefined') return null;
 
   try {
@@ -48,6 +49,12 @@ export function getAdminAuth(): AdminAuth | null {
     // Check if token expired
     if (new Date(auth.expiresAt) < new Date()) {
       clearAdminAuth();
+      
+      // Auto-redirect to login if on admin route and not skipping redirect
+      if (!options?.skipRedirect && window.location.pathname.startsWith('/admin')) {
+        window.location.href = '/admin/login?error=expired';
+      }
+      
       return null;
     }
 

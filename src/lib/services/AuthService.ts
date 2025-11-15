@@ -16,14 +16,14 @@ class AuthService {
    * Get session duration based on role and rememberMe
    * 
    * Duration rules:
-   * - CUSTOMER: 3 months (7776000 seconds / 90 days)
+   * - CUSTOMER: 1 year (31536000 seconds / 365 days)
    * - ADMIN/OWNER/STAFF with rememberMe: 1 week (604800 seconds)
    * - ADMIN/OWNER/STAFF without rememberMe: 1 day (86400 seconds)
    */
   private getSessionDuration(role: string, rememberMe?: boolean): number {
-    // Customer: 3 months
+    // Customer: 1 year
     if (role === 'CUSTOMER') {
-      return 90 * 24 * 60 * 60; // 7776000 seconds = 90 days
+      return 365 * 24 * 60 * 60; // 31536000 seconds = 365 days = 1 year
     }
 
     // Admin, Merchant Owner, Merchant Staff

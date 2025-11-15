@@ -42,6 +42,13 @@ function AdminLoginForm() {
   const redirectPath = searchParams.get('redirect') || '/admin/dashboard';
   const errorParam = searchParams.get('error');
 
+  // Error messages
+  const errorMessages: Record<string, string> = {
+    expired: 'Sesi Anda telah berakhir. Silakan login kembali.',
+    forbidden: 'Akses ditolak. Anda tidak memiliki izin.',
+    unauthorized: 'Anda harus login terlebih dahulu.',
+  };
+
   /**
    * Handle form input changes
    */
@@ -182,11 +189,7 @@ function AdminLoginForm() {
                       Login Gagal
                     </p>
                     <p className="text-sm text-red-600 dark:text-red-400 mt-1">
-                      {error || 
-                        (errorParam === 'forbidden' ? 'Sesi Anda telah berakhir. Silakan login kembali.' : 
-                         errorParam === 'unauthorized' ? 'Anda harus login terlebih dahulu.' :
-                         'Terjadi kesalahan. Silakan coba lagi.')
-                      }
+                      {error || (errorParam ? errorMessages[errorParam] || 'Terjadi kesalahan. Silakan coba lagi.' : '')}
                     </p>
                   </div>
                 </div>

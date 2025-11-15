@@ -4,6 +4,7 @@ import { useSidebar } from "@/context/SidebarContext";
 import AppHeader from "@/layout/AppHeader";
 import AppSidebar from "@/layout/AppSidebar";
 import Backdrop from "@/layout/Backdrop";
+import SessionGuard from "@/components/auth/SessionGuard";
 import React from "react";
 
 /**
@@ -35,6 +36,9 @@ export default function AdminDashboardLayout({
 
   return (
     <div className="min-h-screen xl:flex">
+      {/* Session Guard - Auto logout on token expiry */}
+      <SessionGuard />
+      
       {/* Sidebar and Backdrop */}
       <AppSidebar />
       <Backdrop />
