@@ -9,7 +9,7 @@ import { getAdminAuth, clearAdminAuth } from '@/lib/utils/adminAuth';
  * Periodically checks token expiry and auto-redirects to login when expired
  * 
  * Features:
- * - Checks token every 60 seconds
+ * - Checks token every 10 seconds (reduced from 60s for faster detection)
  * - Auto-clears localStorage on expiry
  * - Redirects to /admin/login with error message
  * - Only active on admin routes
@@ -33,8 +33,8 @@ export default function SessionGuard() {
     // Check immediately on mount
     checkSession();
 
-    // Then check every 60 seconds
-    const interval = setInterval(checkSession, 60000); // 60 seconds
+    // Then check every 10 seconds (reduced from 60s for faster expiry detection)
+    const interval = setInterval(checkSession, 10000);
 
     return () => clearInterval(interval);
   }, [pathname, router]);

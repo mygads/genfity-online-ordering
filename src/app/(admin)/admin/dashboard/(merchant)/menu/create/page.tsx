@@ -4,21 +4,24 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
+import Image from "next/image";
 
-interface Category {
+interface Merchant {
   id: string;
   name: string;
+  currency: string;
 }
 
 interface MenuFormData {
   name: string;
   description: string;
   price: string;
-  categoryId: string;
   imageUrl: string;
   isActive: boolean;
   trackStock: boolean;
   stockQty: string;
+  dailyStockTemplate: string;
+  autoResetStock: boolean;
 }
 
 export default function CreateMenuPage() {
@@ -26,21 +29,23 @@ export default function CreateMenuPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [merchant, setMerchant] = useState<Merchant | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
   
-  const [categories, setCategories] = useState<Category[]>([]);
   const [formData, setFormData] = useState<MenuFormData>({
     name: "",
     description: "",
     price: "",
-    categoryId: "",
     imageUrl: "",
     isActive: true,
     trackStock: false,
     stockQty: "",
+    dailyStockTemplate: "",
+    autoResetStock: false,
   });
 
   useEffect(() => {
-    const fetchCategories = async () => {
+    const fetchMerchant = async () => {
       try {
         setLoading(true);
         const token = localStorage.getItem("accessToken");
@@ -49,28 +54,79 @@ export default function CreateMenuPage() {
           return;
         }
 
-        const response = await fetch("/api/merchant/categories", {
+        const response = await fetch("/api/merchant/profile", {
           headers: { Authorization: `Bearer ${token}` },
         });
 
         if (!response.ok) {
-          throw new Error("Failed to fetch categories");
+          throw new Error("Failed to fetch merchant profile");
         }
 
         const data = await response.json();
-        if (data.success && Array.isArray(data.data)) {
-          setCategories(data.data);
+        if (data.success && data.data) {
+          setMerchant(data.data);
         }
       } catch (err) {
-        console.error("Fetch categories error:", err);
+        console.error("Fetch merchant error:", err);
         setError(err instanceof Error ? err.message : "An error occurred");
       } finally {
         setLoading(false);
       }
     };
 
-    fetchCategories();
+    fetchMerchant();
   }, [router]);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      setError('Invalid file type. Only JPEG, PNG, and WebP are allowed.');
+      return;
+    }
+
+    const maxSizeMB = 5;
+    const maxSizeBytes = maxSizeMB * 1024 * 1024;
+    if (file.size > maxSizeBytes) {
+      setError(`File size must be less than ${maxSizeMB}MB.`);
+      return;
+    }
+
+    try {
+      setUploadingImage(true);
+      setError(null);
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const token = localStorage.getItem('accessToken');
+      const response = await fetch('/api/merchant/upload/menu-image', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to upload image');
+      }
+
+      setFormData(prev => ({
+        ...prev,
+        imageUrl: data.data.url,
+      }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to upload image');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
@@ -105,11 +161,12 @@ export default function CreateMenuPage() {
         name: formData.name,
         description: formData.description || undefined,
         price: parseFloat(formData.price),
-        categoryId: formData.categoryId,
         imageUrl: formData.imageUrl || undefined,
         isActive: formData.isActive,
         trackStock: formData.trackStock,
         stockQty: formData.trackStock && formData.stockQty ? parseInt(formData.stockQty) : undefined,
+        dailyStockTemplate: formData.trackStock && formData.dailyStockTemplate ? parseInt(formData.dailyStockTemplate) : undefined,
+        autoResetStock: formData.autoResetStock,
       };
 
       const response = await fetch("/api/merchant/menu", {
@@ -158,39 +215,25 @@ export default function CreateMenuPage() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Category <span className="text-error-500">*</span>
-              </label>
-              <select
-                name="categoryId"
-                value={formData.categoryId}
-                onChange={handleChange}
-                required
-                className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 text-sm text-gray-800 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90"
-              >
-                <option value="">Select a category</option>
-                {categories.map((cat) => (
-                  <option key={cat.id} value={cat.id}>{cat.name}</option>
-                ))}
-              </select>
-            </div>
+          <div className="mb-6 rounded-lg bg-blue-50 p-4 dark:bg-blue-900/20">
+            <p className="text-sm text-blue-600 dark:text-blue-400">
+              <strong>Note:</strong> After creating the menu item, you can assign categories via the Categories page.
+            </p>
+          </div>
 
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Item Name <span className="text-error-500">*</span>
-              </label>
-              <input
-                type="text"
-                name="name"
-                value={formData.name}
-                onChange={handleChange}
-                required
-                placeholder="e.g. Espresso"
-                className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30"
-              />
-            </div>
+          <div>
+            <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Item Name <span className="text-error-500">*</span>
+            </label>
+            <input
+              type="text"
+              name="name"
+              value={formData.name}
+              onChange={handleChange}
+              required
+              placeholder="e.g. Espresso"
+              className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30"
+            />
           </div>
 
           <div>
@@ -213,7 +256,9 @@ export default function CreateMenuPage() {
                 Price <span className="text-error-500">*</span>
               </label>
               <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-gray-500">Rp</span>
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-gray-500">
+                  {merchant?.currency === 'IDR' ? 'Rp' : merchant?.currency === 'AUD' ? 'A$' : 'AUD'}
+                </span>
                 <input
                   type="number"
                   name="price"
@@ -230,18 +275,41 @@ export default function CreateMenuPage() {
 
             <div>
               <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Image URL
+                Image Upload
               </label>
               <input
-                type="url"
-                name="imageUrl"
-                value={formData.imageUrl}
-                onChange={handleChange}
-                placeholder="https://example.com/image.jpg"
-                className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30"
+                type="file"
+                accept="image/jpeg,image/jpg,image/png,image/webp"
+                onChange={handleImageUpload}
+                disabled={uploadingImage}
+                className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 text-sm text-gray-800 file:mr-4 file:rounded file:border-0 file:bg-brand-50 file:px-4 file:py-1 file:text-sm file:font-medium file:text-brand-600 hover:file:bg-brand-100 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90 dark:file:bg-brand-900/20 dark:file:text-brand-400"
               />
+              {uploadingImage && (
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Uploading image...</p>
+              )}
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Supported formats: JPEG, PNG, WebP (max 5MB)
+              </p>
             </div>
           </div>
+
+          {formData.imageUrl && (
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Image Preview
+              </label>
+              <Image 
+                src={formData.imageUrl} 
+                alt="Menu preview"
+                width={192}
+                height={192}
+                className="rounded-lg object-cover"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = 'none';
+                }}
+              />
+            </div>
+          )}
 
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             <div className="flex items-center gap-3">
@@ -274,20 +342,54 @@ export default function CreateMenuPage() {
           </div>
 
           {formData.trackStock && (
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Stock Quantity <span className="text-error-500">*</span>
-              </label>
-              <input
-                type="number"
-                name="stockQty"
-                value={formData.stockQty}
-                onChange={handleChange}
-                required={formData.trackStock}
-                min="0"
-                placeholder="0"
-                className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30"
-              />
+            <div className="space-y-4">
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Stock Quantity <span className="text-error-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  name="stockQty"
+                  value={formData.stockQty}
+                  onChange={handleChange}
+                  required={formData.trackStock}
+                  min="0"
+                  placeholder="0"
+                  className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Daily Stock Template <span className="text-xs text-gray-500">(Optional)</span>
+                </label>
+                <input
+                  type="number"
+                  name="dailyStockTemplate"
+                  value={formData.dailyStockTemplate}
+                  onChange={handleChange}
+                  min="0"
+                  placeholder="e.g., 50 (for auto-reset)"
+                  className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30"
+                />
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  Stock will auto-reset to this value daily if enabled
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  id="autoResetStock"
+                  name="autoResetStock"
+                  checked={formData.autoResetStock}
+                  onChange={handleChange}
+                  className="h-4 w-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500"
+                />
+                <label htmlFor="autoResetStock" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Auto-reset stock daily (requires template)
+                </label>
+              </div>
             </div>
           )}
 

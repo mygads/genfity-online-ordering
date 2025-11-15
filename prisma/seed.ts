@@ -264,10 +264,10 @@ async function main() {
     });
 
     if (!existing) {
-      await prisma.menu.create({
+      // Create menu item without categoryId (removed in migration)
+      const menuItem = await prisma.menu.create({
         data: {
           merchantId: merchant.id,
-          categoryId: category.id,
           name: item.name,
           description: item.description,
           price: item.price,
@@ -277,7 +277,16 @@ async function main() {
           stockQty: 0,
         },
       });
-      console.log(`✅ Menu item created: ${item.name}`);
+
+      // Create many-to-many relationship via MenuCategoryItem junction table
+      await prisma.menuCategoryItem.create({
+        data: {
+          menuId: menuItem.id,
+          categoryId: category.id,
+        },
+      });
+
+      console.log(`✅ Menu item created: ${item.name} (linked to ${category.name})`);
     }
   }
 

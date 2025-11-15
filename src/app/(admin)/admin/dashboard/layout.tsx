@@ -5,6 +5,7 @@ import AppHeader from "@/layout/AppHeader";
 import AppSidebar from "@/layout/AppSidebar";
 import Backdrop from "@/layout/Backdrop";
 import SessionGuard from "@/components/auth/SessionGuard";
+import { useSessionSync } from "@/hooks/useSessionSync";
 import React from "react";
 
 /**
@@ -19,6 +20,7 @@ import React from "react";
  * - Uses AppHeader from template with search and notifications
  * - Responsive margin adjustment based on sidebar state
  * - Mobile-friendly with backdrop overlay
+ * - Auto-syncs session with server on page load
  */
 export default function AdminDashboardLayout({
   children,
@@ -26,6 +28,9 @@ export default function AdminDashboardLayout({
   children: React.ReactNode;
 }) {
   const { isExpanded, isHovered, isMobileOpen } = useSidebar();
+
+  // Sync session with server on page load/refresh
+  useSessionSync();
 
   // Dynamic class for main content margin based on sidebar state
   const mainContentMargin = isMobileOpen

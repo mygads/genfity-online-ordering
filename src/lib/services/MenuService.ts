@@ -34,7 +34,7 @@ export interface MenuCategoryInput {
  */
 export interface MenuInput {
   merchantId: bigint;
-  categoryId: bigint;
+  categoryId?: bigint;
   name: string;
   description?: string;
   price: number;

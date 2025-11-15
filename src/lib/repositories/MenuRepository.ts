@@ -71,11 +71,22 @@ export class MenuRepository {
     const results = await prisma.menu.findMany({
       where: {
         merchantId,
-        ...(categoryId && { categoryId }),
+        ...(categoryId && {
+          categories: {
+            some: {
+              categoryId,
+            },
+          },
+        }),
         ...(includeInactive ? {} : { isActive: true }),
       },
       include: {
-        category: true,
+        category: true, // Keep for backward compatibility
+        categories: {
+          include: {
+            category: true,
+          },
+        },
         addonCategories: {
           include: {
             addonCategory: {
@@ -99,7 +110,12 @@ export class MenuRepository {
     const result = await prisma.menu.findUnique({
       where: { id },
       include: {
-        category: true,
+        category: true, // Keep for backward compatibility
+        categories: {
+          include: {
+            category: true,
+          },
+        },
         addonCategories: {
           include: {
             addonCategory: {
@@ -167,6 +183,55 @@ export class MenuRepository {
       },
     });
     return serializeData(result);
+  }
+
+  /**
+   * ========================================
+   * MENU CATEGORIES (Many-to-Many)
+   * ========================================
+   */
+
+  async addMenuCategories(menuId: bigint, categoryIds: bigint[]) {
+    const results = await Promise.all(
+      categoryIds.map((categoryId) =>
+        prisma.menuCategoryItem.create({
+          data: {
+            menuId,
+            categoryId,
+          },
+        })
+      )
+    );
+    return serializeData(results);
+  }
+
+  async removeMenuCategory(menuId: bigint, categoryId: bigint) {
+    const result = await prisma.menuCategoryItem.deleteMany({
+      where: {
+        menuId,
+        categoryId,
+      },
+    });
+    return serializeData(result);
+  }
+
+  async removeAllMenuCategories(menuId: bigint) {
+    const result = await prisma.menuCategoryItem.deleteMany({
+      where: { menuId },
+    });
+    return serializeData(result);
+  }
+
+  async setMenuCategories(menuId: bigint, categoryIds: bigint[]) {
+    // Remove all existing categories
+    await this.removeAllMenuCategories(menuId);
+    
+    // Add new categories
+    if (categoryIds.length > 0) {
+      return await this.addMenuCategories(menuId, categoryIds);
+    }
+    
+    return [];
   }
 
   /**

@@ -44,9 +44,9 @@ function AdminLoginForm() {
 
   // Error messages
   const errorMessages: Record<string, string> = {
-    expired: 'Sesi Anda telah berakhir. Silakan login kembali.',
-    forbidden: 'Akses ditolak. Anda tidak memiliki izin.',
-    unauthorized: 'Anda harus login terlebih dahulu.',
+    expired: 'Your session has expired. Please log in again.',
+    forbidden: 'Access denied. You do not have permission.',
+    unauthorized: 'You must log in first.',
   };
 
   /**
@@ -180,7 +180,7 @@ function AdminLoginForm() {
                   <span className="text-red-500 font-bold">⚠</span>
                   <div>
                     <p className="text-sm font-semibold text-red-600 dark:text-red-400">
-                      Login Gagal
+                      Login Failed
                     </p>
                     <p className="text-sm text-red-600 dark:text-red-400 mt-1">
                       {error || (errorParam ? errorMessages[errorParam] || 'Terjadi kesalahan. Silakan coba lagi.' : '')}

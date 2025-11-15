@@ -138,18 +138,19 @@ class AuthService {
     }
 
     // Step 5: Generate JWT with session ID and merchantId in payload
+    // Pass sessionDuration to ensure JWT exp matches session expiresAt
     const accessToken = generateAccessToken({
       userId: user.id,
       sessionId: session.id,
       role: user.role,
       email: user.email,
       merchantId,
-    });
+    }, sessionDuration); // ✅ Pass dynamic duration
 
     const refreshToken = generateRefreshToken({
       userId: user.id,
       sessionId: session.id,
-    });
+    }, refreshDuration); // ✅ Pass dynamic duration
 
     // Update session with actual access token
     await sessionRepository.update(session.id, {
