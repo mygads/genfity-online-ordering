@@ -10,6 +10,9 @@ interface MenuItem {
   name: string;
   description: string | null;
   price: string | number;
+  promoPrice: string | number | null;
+  promoStartDate: string | null;
+  promoEndDate: string | null;
   imageUrl: string | null;
   categoryId: string;
   category?: {
@@ -17,12 +20,23 @@ interface MenuItem {
     name: string;
   };
   isActive: boolean;
+  isPromo: boolean;
+  trackStock: boolean;
+  stockQty: number | null;
+  dailyStockTemplate: number | null;
+  autoResetStock: boolean;
   createdAt: string;
 }
 
 interface Category {
   id: string;
   name: string;
+}
+
+interface Merchant {
+  id: string;
+  name: string;
+  currency: string;
 }
 
 export default function MerchantMenuPage() {
@@ -33,6 +47,9 @@ export default function MerchantMenuPage() {
   
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [merchant, setMerchant] = useState<Merchant | null>(null);
+  const [selectedPromoMenu, setSelectedPromoMenu] = useState<MenuItem | null>(null);
+  const [selectedStockMenu, setSelectedStockMenu] = useState<MenuItem | null>(null);
 
   const fetchData = async () => {
     try {
@@ -43,11 +60,14 @@ export default function MerchantMenuPage() {
         return;
       }
 
-      const [menuResponse, categoriesResponse] = await Promise.all([
+      const [menuResponse, categoriesResponse, merchantResponse] = await Promise.all([
         fetch("/api/merchant/menu", {
           headers: { Authorization: `Bearer ${token}` },
         }),
         fetch("/api/merchant/categories", {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch("/api/merchant/profile", {
           headers: { Authorization: `Bearer ${token}` },
         }),
       ]);
@@ -58,9 +78,11 @@ export default function MerchantMenuPage() {
 
       const menuData = await menuResponse.json();
       const categoriesData = await categoriesResponse.json();
+      const merchantData = await merchantResponse.json();
 
       console.log('Menu data:', menuData);
       console.log('Categories data:', categoriesData);
+      console.log('Merchant data:', merchantData);
 
       // Handle response format: { success: true, data: [...] }
       if (menuData.success && Array.isArray(menuData.data)) {
@@ -73,6 +95,10 @@ export default function MerchantMenuPage() {
         setCategories(categoriesData.data);
       } else {
         setCategories([]);
+      }
+
+      if (merchantData.success && merchantData.data) {
+        setMerchant(merchantData.data);
       }
     } catch (err) {
       console.error("Fetch menu data error:", err);
@@ -120,10 +146,44 @@ export default function MerchantMenuPage() {
     }
   };
 
-  const formatPrice = (price: string | number): string => {
+  const handleToggleActive = async (id: string, currentStatus: boolean, name: string) => {
+    try {
+      const token = localStorage.getItem("accessToken");
+      if (!token) {
+        router.push("/admin/login");
+        return;
+      }
+
+      const response = await fetch(`/api/merchant/menu/${id}/toggle-active`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || "Failed to toggle menu status");
+      }
+
+      setSuccess(`Menu "${name}" ${!currentStatus ? 'activated' : 'deactivated'} successfully`);
+      setTimeout(() => setSuccess(null), 3000);
+      fetchData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An error occurred");
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  const formatPrice = (price: string | number, currency?: string): string => {
     const numPrice = typeof price === 'string' ? parseFloat(price) : price;
-    if (isNaN(numPrice)) return 'Rp 0';
-    return `Rp ${numPrice.toLocaleString('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+    if (isNaN(numPrice)) return `${currency || 'AUD'} 0`;
+    
+    const curr = currency || merchant?.currency || 'AUD';
+    const symbol = curr === 'IDR' ? 'Rp' : curr === 'AUD' ? 'A$' : curr;
+    const locale = curr === 'IDR' ? 'id-ID' : 'en-AU';
+    
+    return `${symbol} ${numPrice.toLocaleString(locale, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
   };
 
   const getCategoryName = (item: MenuItem): string => {
