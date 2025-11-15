@@ -132,8 +132,9 @@ function AdminLoginForm() {
 
       // Determine redirect URL based on role
       let redirectUrl = redirectPath;
-      if (data.data.user.role === 'MERCHANT_OWNER' || data.data.user.role === 'MERCHANT_STAFF') {
-        redirectUrl = '/admin/merchant/orders';
+      // All admin roles go to /admin/dashboard which handles role-based rendering
+      if (redirectPath === '/admin/dashboard') {
+        redirectUrl = '/admin/dashboard';
       }
 
       // Use window.location for more reliable redirect

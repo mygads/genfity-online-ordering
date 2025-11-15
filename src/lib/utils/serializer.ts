@@ -94,3 +94,12 @@ export function jsonStringify(data: unknown): string {
     typeof value === 'bigint' ? value.toString() : value
   );
 }
+
+/**
+ * Alias for serializeData - for backward compatibility
+ * Recursively serialize BigInt and Decimal to JSON-safe format
+ * 
+ * @param obj - Any object (can contain BigInt, Decimal, nested objects)
+ * @returns Serialized object safe for JSON.stringify()
+ */
+export const serializeBigInt = serializeData;
