@@ -1,27 +1,37 @@
 'use client';
 
+import { formatCurrency } from '@/lib/utils/format';
+
 interface PaymentConfirmationModalProps {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: () => void;
   totalAmount: number;
+  breakdown?: {
+    subtotal: number;
+    serviceCharge: number;
+    tax: number;
+  };
 }
 
 /**
  * Payment Confirmation Modal - Center Overlay
  * 
- * Based on FRONTEND_SPECIFICATION.md:
- * - Center overlay (not bottom sheet)
- * - Illustration/Icon
- * - Title "Proses pembayaran sekarang?"
- * - Buttons: "Cek Lagi" (outline) + "Bayar Sekarang" (primary)
- * - Z-index 300
+ * @specification FRONTEND_SPECIFICATION.md - Payment Confirmation
+ * 
+ * @description
+ * Shows order total with breakdown before payment:
+ * - Subtotal (base price)
+ * - Service charge (5%)
+ * - Tax (merchant-specific %)
+ * - Total amount
  */
 export default function PaymentConfirmationModal({
   isOpen,
   onClose,
   onConfirm,
   totalAmount,
+  breakdown,
 }: PaymentConfirmationModalProps) {
   if (!isOpen) return null;
 
@@ -54,14 +64,39 @@ export default function PaymentConfirmationModal({
             Pastikan pesanan Anda sudah benar
           </p>
 
-          {/* Total Recap - 16px/700 */}
+          {/* ✅ FIXED: Total Recap with Breakdown */}
           <div className="bg-[#F9F9F9] rounded-lg p-3 mb-6">
-            <div className="flex justify-between items-center">
-              <span className="text-sm font-semibold text-[#666666]">Total:</span>
-              <span className="text-base font-bold text-[#FF6A35]">
-                Rp{totalAmount.toLocaleString('id-ID')}
-              </span>
-            </div>
+            {breakdown ? (
+              <div className="space-y-2">
+                <div className="flex justify-between text-xs">
+                  <span className="text-[#666666]">Subtotal</span>
+                  <span className="text-[#1A1A1A]">{formatCurrency(breakdown.subtotal)}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-[#666666]">Biaya Layanan (5%)</span>
+                  <span className="text-[#1A1A1A]">{formatCurrency(breakdown.serviceCharge)}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-[#666666]">Pajak</span>
+                  <span className="text-[#1A1A1A]">{formatCurrency(breakdown.tax)}</span>
+                </div>
+                <div className="pt-2 border-t border-[#E0E0E0]">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-semibold text-[#666666]">Total:</span>
+                    <span className="text-base font-bold text-[#FF6A35]">
+                      {formatCurrency(totalAmount)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-semibold text-[#666666]">Total:</span>
+                <span className="text-base font-bold text-[#FF6A35]">
+                  {formatCurrency(totalAmount)}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Buttons */}

@@ -3,21 +3,21 @@
 // Force dynamic rendering
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { isCustomerAuthenticated } from '@/lib/utils/localStorage';
+import CustomerHeader from '@/components/customer/CustomerHeader';
 
 /**
  * GENFITY Customer Landing Page
  * 
  * @description
  * Main entry point for customers. Shows merchant code input and "Cara Menggunakan" hero.
- * Header shows conditional Sign In button or Profile + History icons.
+ * Uses CustomerHeader component for consistent auth detection across all pages.
  * 
  * @specification
  * - Container: max-w-[420px] mx-auto bg-white min-h-svh
- * - Top-right: "Masuk" button (unauthenticated) OR Profile + History icons (authenticated)
+ * - Header: CustomerHeader component (consistent with /order page)
  * - Hero section: 3 steps illustration (Pesan • Bayar • Makan)
  * - Merchant code input + "Lanjutkan" button
  * - Safe area padding for mobile devices
@@ -25,29 +25,29 @@ import { isCustomerAuthenticated } from '@/lib/utils/localStorage';
  * @navigation
  * - After merchant code input → /[merchantCode]
  * - Sign In → /login?ref=/ 
- * - Profile → /profile?ref=/
- * - History → /history?ref=/
+ * - Profile → /[merchantCode]/profile (via CustomerHeader)
+ * - History → /[merchantCode]/history (via CustomerHeader)
+ * 
+ * @specification copilot-instructions.md - Customer Navigation
  */
 export default function CustomerLandingPage() {
   const router = useRouter();
   const [merchantCode, setMerchantCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  // Check authentication status
-  useEffect(() => {
-    setIsAuthenticated(isCustomerAuthenticated());
-
-    const handleAuthChange = () => {
-      setIsAuthenticated(isCustomerAuthenticated());
-    };
-
-    window.addEventListener('storage', handleAuthChange);
-    return () => window.removeEventListener('storage', handleAuthChange);
-  }, []);
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  /**
+   * Handle merchant code submission
+   * 
+   * @description
+   * 1. Validate merchant code format
+   * 2. Fetch merchant data from API
+   * 3. Save to localStorage for quick access
+   * 4. Navigate to merchant page
+   * 
+   * @specification STEP_02 - Merchant validation flow
+   */
+  const handleMerchantSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -59,38 +59,28 @@ export default function CustomerLandingPage() {
     setIsLoading(true);
 
     try {
-      // Validate merchant exists
       const response = await fetch(`/api/public/merchants/${merchantCode.trim()}`);
-      
+
       if (!response.ok) {
         throw new Error('Kode merchant tidak valid');
       }
 
       const data = await response.json();
-      
+
       if (!data.success) {
         throw new Error(data.message || 'Merchant tidak ditemukan');
       }
 
-      // Redirect to merchant mode selection page
+      // ✅ Save last visited merchant
+      localStorage.setItem('lastMerchantCode', merchantCode.trim());
+      console.log('💾 Last merchant saved:', merchantCode.trim());
+
       router.push(`/${merchantCode.trim()}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Terjadi kesalahan');
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleSignInClick = () => {
-    router.push('/login?ref=%2F');
-  };
-
-  const handleProfileClick = () => {
-    router.push('/profile?ref=%2F');
-  };
-
-  const handleHistoryClick = () => {
-    router.push('/history?ref=%2F');
   };
 
   return (
@@ -101,70 +91,13 @@ export default function CustomerLandingPage() {
         paddingBottom: 'env(safe-area-inset-bottom)',
       }}
     >
-      {/* Header */}
-      <header className="flex items-center justify-between h-14 px-4 border-b border-gray-200">
-        <div className="flex items-center gap-2">
-          <span className="text-2xl">🍽️</span>
-          <span className="text-lg font-bold text-gray-900">GENFITY</span>
-        </div>
+      {/* ✅ Use CustomerHeader component (same as /order page) */}
+      <CustomerHeader 
+        title="GENFITY"
+        showBackButton={false}
+        merchantCode={undefined} // No merchant context on landing page
+      />
 
-        {/* Auth Buttons */}
-        <div className="flex items-center gap-2">
-          {isAuthenticated ? (
-            <>
-              {/* History Icon */}
-              <button
-                onClick={handleHistoryClick}
-                className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                aria-label="Riwayat"
-              >
-                <svg
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  className="text-gray-700"
-                >
-                  <circle cx="12" cy="12" r="10" />
-                  <polyline points="12 6 12 12 16 14" />
-                </svg>
-              </button>
-
-              {/* Profile Icon */}
-              <button
-                onClick={handleProfileClick}
-                className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                aria-label="Akun"
-              >
-                <svg
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  className="text-gray-700"
-                >
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                  <circle cx="12" cy="7" r="4" />
-                </svg>
-              </button>
-            </>
-          ) : (
-            /* Sign In Button */
-            <button
-              onClick={handleSignInClick}
-              className="text-sm font-medium text-orange-500 hover:text-orange-600 px-3 py-1.5 rounded-lg hover:bg-orange-50 transition-colors"
-            >
-              Masuk
-            </button>
-          )}
-        </div>
-      </header>
-
-      {/* Main Content */}
       <main className="flex-1 flex flex-col px-4 py-8">
         {/* Logo & Welcome */}
         <div className="text-center mb-8">
@@ -185,7 +118,7 @@ export default function CustomerLandingPage() {
             Cara Menggunakan
           </h2>
           <div className="flex items-center justify-center gap-6">
-            {/* Step 1 */}
+            {/* Step 1: Order */}
             <div className="flex flex-col items-center">
               <div className="w-14 h-14 bg-orange-100 rounded-full flex items-center justify-center mb-2">
                 <span className="text-2xl">🛒</span>
@@ -193,10 +126,9 @@ export default function CustomerLandingPage() {
               <p className="text-xs text-gray-700 font-medium">Pesan</p>
             </div>
 
-            {/* Separator */}
             <div className="text-gray-400 text-xs">•</div>
 
-            {/* Step 2 */}
+            {/* Step 2: Pay */}
             <div className="flex flex-col items-center">
               <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mb-2">
                 <span className="text-2xl">💳</span>
@@ -204,10 +136,9 @@ export default function CustomerLandingPage() {
               <p className="text-xs text-gray-700 font-medium">Bayar</p>
             </div>
 
-            {/* Separator */}
             <div className="text-gray-400 text-xs">•</div>
 
-            {/* Step 3 */}
+            {/* Step 3: Enjoy */}
             <div className="flex flex-col items-center">
               <div className="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center mb-2">
                 <span className="text-2xl">😋</span>
@@ -222,14 +153,14 @@ export default function CustomerLandingPage() {
           <h3 className="text-lg font-semibold text-gray-900 mb-4">
             Mulai Memesan
           </h3>
-          
+
           {error && (
             <div className="mb-4 p-3 bg-red-50 border-l-4 border-red-500 rounded">
               <p className="text-sm text-red-600">{error}</p>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleMerchantSubmit} className="space-y-4">
             <div>
               <label
                 htmlFor="merchantCode"

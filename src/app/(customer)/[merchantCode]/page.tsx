@@ -65,14 +65,14 @@ export default function MerchantModePage({ params }: MerchantPageProps) {
   useEffect(() => {
     params.then(({ merchantCode: code }) => {
       setMerchantCode(code);
-      
+
       // Check localStorage for cached mode
       const cachedMode = localStorage.getItem(`mode_${code}`);
       if (cachedMode === 'dinein' || cachedMode === 'takeaway') {
-        router.push(`/${code}/order?mode=${cachedMode}`);
+        router.replace(`/${code}/order?mode=${cachedMode}`);
         return;
       }
-      
+
       // Fetch merchant data
       fetchMerchant(code);
     });
@@ -81,19 +81,19 @@ export default function MerchantModePage({ params }: MerchantPageProps) {
   const fetchMerchant = async (code: string) => {
     setIsLoading(true);
     setError(null);
-    
+
     try {
       const response = await fetch(`/api/public/merchants/${code}`);
-      
+
       if (!response.ok) {
         throw new Error('Merchant tidak ditemukan');
       }
-      
+
       const data = await response.json();
       if (!data.success) {
         throw new Error(data.message || 'Gagal memuat data merchant');
       }
-      
+
       setMerchant(data.data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Terjadi kesalahan');
@@ -103,16 +103,16 @@ export default function MerchantModePage({ params }: MerchantPageProps) {
     }
   };
 
-  const handleModeSelect = (mode: 'dinein' | 'takeaway') => {
+  const handleModeSelect = (selectedMode: 'dinein' | 'takeaway') => {
     // Save mode to localStorage
-    localStorage.setItem(`mode_${merchantCode}`, mode);
-    
+    localStorage.setItem(`mode_${merchantCode}`, selectedMode);
+
     // For dine-in, show table number modal first
-    if (mode === 'dinein') {
+    if (selectedMode === 'dinein') {
       setShowTableModal(true);
     } else {
       // For takeaway, go directly to order page
-      router.push(`/${merchantCode}/order?mode=${mode}`);
+      router.replace(`/${merchantCode}/order?mode=${selectedMode}`);
     }
   };
 
@@ -158,7 +158,7 @@ export default function MerchantModePage({ params }: MerchantPageProps) {
   }
 
   return (
-    <div 
+    <div
       className="max-w-[420px] mx-auto bg-white min-h-svh flex flex-col"
       style={{
         paddingTop: 'env(safe-area-inset-top)',
@@ -199,14 +199,14 @@ export default function MerchantModePage({ params }: MerchantPageProps) {
         <h1 className="text-xl font-bold text-primary-dark mb-2">
           {merchant.name}
         </h1>
-        
+
         {/* Address - 13px/400/#666, max 2 lines */}
         {merchant.address && (
           <p className="text-[13px] text-secondary line-clamp-2 mb-3">
             📍 {merchant.address}
           </p>
         )}
-        
+
         {/* Phone - 13px/#999 */}
         {merchant.phone && (
           <a
@@ -216,16 +216,16 @@ export default function MerchantModePage({ params }: MerchantPageProps) {
             📞 {merchant.phone}
           </a>
         )}
-        
+
         {/* Hours - 13px/#999 */}
         <p className="text-[13px] text-neutral-400 mb-3">
           {merchant.openingHours?.[0]?.is24Hours
             ? '🕐 Buka 24 Jam'
             : merchant.openingHours?.[0]?.isClosed
-            ? '🕐 Tutup'
-            : `🕐 ${merchant.openingHours?.[0]?.openTime || '08:00'} - ${merchant.openingHours?.[0]?.closeTime || '22:00'}`}
+              ? '🕐 Tutup'
+              : `🕐 ${merchant.openingHours?.[0]?.openTime || '08:00'} - ${merchant.openingHours?.[0]?.closeTime || '22:00'}`}
         </p>
-        
+
         {/* Outlet info link - 13px/600/#FF6B35 */}
         <button
           onClick={() => setShowOutletInfo(!showOutletInfo)}
@@ -255,8 +255,8 @@ export default function MerchantModePage({ params }: MerchantPageProps) {
                     {hours.isClosed
                       ? 'Tutup'
                       : hours.is24Hours
-                      ? 'Buka 24 Jam'
-                      : `${hours.openTime} - ${hours.closeTime}`}
+                        ? 'Buka 24 Jam'
+                        : `${hours.openTime} - ${hours.closeTime}`}
                   </span>
                 </div>
               ))}
@@ -270,7 +270,7 @@ export default function MerchantModePage({ params }: MerchantPageProps) {
         <h2 className="text-base font-semibold text-primary-dark mb-4">
           Pilih Cara Makan
         </h2>
-        
+
         {/* Button 1: Dine-in - 56px height, 100% width, 16px/600 */}
         <button
           onClick={() => handleModeSelect('dinein')}
@@ -279,7 +279,7 @@ export default function MerchantModePage({ params }: MerchantPageProps) {
           <span className="text-2xl">🍽️</span>
           Makan di Tempat
         </button>
-        
+
         {/* Button 2: Takeaway - Same styling */}
         <button
           onClick={() => handleModeSelect('takeaway')}

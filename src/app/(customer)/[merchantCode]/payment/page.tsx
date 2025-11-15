@@ -6,59 +6,143 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { getCart, getCustomerAuth, saveCustomerAuth, clearCart, clearTableNumber } from '@/lib/utils/localStorage';
+import { getCustomerAuth, getTableNumber, saveCustomerAuth } from '@/lib/utils/localStorage';
 import type { OrderMode } from '@/lib/types/customer';
-import type { LocalCart } from '@/lib/types/cart';
 import PaymentConfirmationModal from '@/components/modals/PaymentConfirmationModal';
+import { useCart } from '@/context/CartContext';
+import { formatCurrency } from '@/lib/utils/format';
+import { calculateCartSubtotal, calculatePriceBreakdown } from '@/lib/utils/priceCalculator';
 
 /**
- * Payment Page - Redesigned
+ * Payment Page - Customer Order Payment
  * 
- * Based on FRONTEND_SPECIFICATION.md (Tasks 21-23):
- * - Fixed header 56px: back button, "Pembayaran" title
- * - Order mode badge: emoji + mode name, table number
- * - Customer info form: Name (required), Phone, Email
- * - Input fields: 48px height, proper labels 14px/600
- * - Payment info card: #FFF5F0 background, instructions
- * - Submit button: "Proses Pesanan" 48px #FF6B35
- * - Confirmation modal: (Task 24 - already created)
- * - Total display in summary card
+ * @specification FRONTEND_SPECIFICATION.md (Tasks 21-24)
+ * 
+ * @description
+ * Payment form with customer info collection:
+ * - Order mode badge (Dine-in/Takeaway)
+ * - Customer form (Name*, Phone, Email)
+ * - Payment instructions card
+ * - Total summary display
+ * - Confirmation modal before order creation
+ * 
+ * @flow
+ * 1. User fills form → Click "Proses Pesanan"
+ * 2. Confirmation modal → Click "Bayar Sekarang"
+ * 3. Auto-register customer (if not logged in)
+ * 4. Create order via POST /api/public/orders
+ * 5. Clear cart → Navigate to order summary
+ * 
+ * @security
+ * - JWT token from customer-login endpoint
+ * - Bearer auth for order creation
+ * - Guest email fallback: guest_[timestamp]@genfity.com
  */
 export default function PaymentPage() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
-  
+
   const merchantCode = params.merchantCode as string;
   const mode = (searchParams.get('mode') || 'takeaway') as OrderMode;
-  
-  const [cart, setCart] = useState<LocalCart | null>(null);
+
+  const { cart, initializeCart, clearCart: clearCartContext } = useCart();
+
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [showConfirmModal, setShowConfirmModal] = useState(false);
-  
+  const [isProcessingOrder, setIsProcessingOrder] = useState(false);
+  const [showPaymentDetails, setShowPaymentDetails] = useState(false);
+
+  // ✅ NEW: State untuk table number dari localStorage
+  const [tableNumber, setTableNumber] = useState<string>('');
+  const [merchantTaxPercentage, setMerchantTaxPercentage] = useState(10); // ✅ NEW
+
   const auth = getCustomerAuth();
 
+  // Initialize cart on mount
   useEffect(() => {
-    const cartData = getCart(merchantCode);
-    if (!cartData || cartData.items.length === 0) {
-      router.push(`/${merchantCode}/home?mode=${mode}`);
+    initializeCart(merchantCode, mode);
+
+    const cartKey = `cart_${merchantCode}_${mode}`;
+    const storedCart = localStorage.getItem(cartKey);
+    console.log('📦 Payment page - Cart from localStorage:', JSON.parse(storedCart || '{}'));
+
+    // ✅ Load table number dari localStorage
+    const tableData = getTableNumber(merchantCode);
+    console.log('📍 Payment page - Table number from localStorage:', tableData);
+
+    if (tableData && tableData.tableNumber) {
+      setTableNumber(tableData.tableNumber);
+    }
+  }, [merchantCode, mode, initializeCart]);
+
+  // Fetch merchant settings
+  useEffect(() => {
+    const fetchMerchantSettings = async () => {
+      try {
+        const response = await fetch(`/api/public/merchants/${merchantCode}`);
+        const data = await response.json();
+
+        if (data.success && data.data.enableTax) {
+          setMerchantTaxPercentage(Number(data.data.taxPercentage) || 10);
+          console.log('✅ [PAYMENT] Merchant tax %:', data.data.taxPercentage);
+        }
+      } catch (error) {
+        console.error('❌ [PAYMENT] Failed to fetch merchant settings:', error);
+      }
+    };
+
+    if (merchantCode) {
+      fetchMerchantSettings();
+    }
+  }, [merchantCode]);
+
+  /**
+   * ✅ FIXED: Only redirect if NOT processing order
+   * 
+   * @description
+   * Prevents redirect loop during order creation.
+   * The flag `isProcessingOrder` is set to true when "Proses Pesanan" is clicked,
+   * and remains true until navigation to order-summary-cash completes.
+   * 
+   * @specification Emergency Troubleshooting - copilot-instructions.md
+   */
+  useEffect(() => {
+    // ✅ Skip redirect if currently processing order
+    if (isProcessingOrder) {
+      console.log('🔄 Order processing in progress, skipping redirect check');
       return;
     }
-    setCart(cartData);
 
-    // Auto-fill if logged in
+    if (cart !== null && (!cart || cart.items.length === 0)) {
+      console.log('⚠️ Cart is empty, redirecting to order page...');
+      router.push(`/${merchantCode}/order?mode=${mode}`);
+    }
+  }, [cart, merchantCode, mode, router, isProcessingOrder]);
+
+  // Auto-fill form if authenticated
+  useEffect(() => {
     if (auth) {
       setName(auth.user.name);
       setEmail(auth.user.email);
       setPhone(auth.user.phone || '');
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [merchantCode]);
+  }, [auth]);
 
+  /**
+   * Form submission handler
+   * 
+   * @description
+   * Validates form before showing confirmation modal:
+   * - Name is required
+   * - Table number required for dine-in (already in cart)
+   * 
+   * @specification FRONTEND_SPECIFICATION.md - Payment Page Validation
+   */
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!cart) return;
@@ -69,22 +153,50 @@ export default function PaymentPage() {
       return;
     }
 
-    // Show confirmation modal
+    // ✅ FIXED: Validasi table number dari state (bukan cart)
+    if (mode === 'dinein' && !tableNumber) {
+      setError('Nomor meja wajib diisi untuk pesanan dine-in');
+      return;
+    }
+
+    setError('');
     setShowConfirmModal(true);
   };
 
+  /**
+   * ✅ FIXED: Clear cart AFTER navigation using setTimeout
+   * 
+   * @flow
+   * 1. Set isProcessingOrder flag (prevents redirect)
+   * 2. Auto-register customer (if needed)
+   * 3. Create order via API
+   * 4. Clear localStorage (mode + cart cache)
+   * 5. Navigate to order-summary-cash
+   * 6. Clear cart context AFTER navigation (100ms delay)
+   * 
+   * @security
+   * - JWT Bearer token authentication
+   * - Guest email fallback
+   * 
+   * @specification STEP_06_BUSINESS_FLOWS.txt - Order creation
+   */
   const handleConfirmPayment = async () => {
     if (!cart) return;
 
     setIsLoading(true);
     setError('');
     setShowConfirmModal(false);
+    setIsProcessingOrder(true);
 
     try {
-      // Step 1: Login/Register if not authenticated
+      // ========================================
+      // STEP 1: Customer Authentication
+      // ========================================
       let accessToken = auth?.accessToken;
-      
+
       if (!auth) {
+        console.log('🔐 Registering guest customer...');
+
         const authResponse = await fetch('/api/public/auth/customer-login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -107,85 +219,138 @@ export default function PaymentPage() {
         });
 
         accessToken = authData.data.accessToken;
+        console.log('✅ Customer registered:', authData.data.user.email);
       }
 
-      // Step 2: Create order
+      // ========================================
+      // STEP 2: Prepare Order Payload
+      // ========================================
+      const orderType = mode === 'dinein' ? 'DINE_IN' : 'TAKEAWAY';
+      // ✅ FIXED: Gunakan tableNumber dari state (bukan cart)
+      const orderTableNumber = mode === 'dinein' ? tableNumber : null;
+
+      const orderPayload = {
+        merchantCode: cart.merchantCode,
+        orderType,
+        tableNumber: orderTableNumber, // ✅ Dari localStorage
+        customerName: name.trim(),
+        customerEmail: email.trim() || undefined,
+        customerPhone: phone.trim() || undefined,
+        items: cart.items.map((item) => ({
+          menuId: item.menuId.toString(),
+          quantity: item.quantity,
+          notes: item.notes || undefined,
+          addons: (item.addons || []).map((addon) => ({
+            addonItemId: addon.id.toString(),
+            quantity: 1,
+          })),
+        })),
+      };
+
+      // ✅ Debug logging BEFORE API call
+      console.log('📦 Order Payload:', JSON.stringify(orderPayload, null, 2));
+
+      // ========================================
+      // STEP 3: Create Order
+      // ========================================
       const orderResponse = await fetch('/api/public/orders', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${accessToken}`,
         },
-        body: JSON.stringify({
-          merchantCode: cart.merchantCode,
-          mode: cart.mode,
-          tableNumber: cart.tableNumber,
-          customerName: name,
-          customerEmail: email || undefined,
-          customerPhone: phone || undefined,
-          items: cart.items.map((item) => ({
-            menuId: item.menuId.toString(),
-            quantity: item.quantity,
-            notes: item.notes,
-            addons: (item.addons || []).map((addon) => ({
-              addonItemId: addon.id.toString(),
-              quantity: 1, // LocalCartAddon doesn't have quantity
-            })),
-          })),
-        }),
+        body: JSON.stringify(orderPayload),
       });
 
       const orderData = await orderResponse.json();
+
+      // ✅ Log response for debugging
+      console.log('📥 Order Response:', {
+        status: orderResponse.status,
+        ok: orderResponse.ok,
+        data: orderData,
+      });
+
       if (!orderResponse.ok) {
+        console.error('❌ Order creation failed:', orderData);
         throw new Error(orderData.message || 'Gagal membuat pesanan');
       }
 
-      // Clear cart and table number
-      clearCart(merchantCode);
-      clearTableNumber(merchantCode);
+      console.log('✅ Order created:', orderData.data.orderNumber);
 
-      // Redirect to order summary
+      // ========================================
+      // STEP 4: Clear localStorage ONLY (not cart context yet)
+      // ========================================
+
+      // ✅ 2. Clear mode cache
+      localStorage.removeItem(`mode_${merchantCode}`);
+      console.log('🗑️ Mode cache cleared:', `mode_${merchantCode}`);
+
+      // ✅ 3. Clear cart localStorage
+      localStorage.removeItem(`cart_${merchantCode}_${mode}`);
+      console.log('🗑️ Cart cache cleared:', `cart_${merchantCode}_${mode}`);
+
+      // ✅ 4. Verify cleanup
+      const modeCheck = localStorage.getItem(`mode_${merchantCode}`);
+      const cartCheck = localStorage.getItem(`cart_${merchantCode}_${mode}`);
+      console.log('🔍 Cleanup verification:', {
+        modeCache: modeCheck === null ? 'CLEARED ✅' : `STILL EXISTS: ${modeCheck}`,
+        cartCache: cartCheck === null ? 'CLEARED ✅' : `STILL EXISTS: ${cartCheck}`,
+      });
+
+      // ========================================
+      // STEP 5: Navigate FIRST, then clear cart context
+      // ========================================
+
+      // ✅ 5. Navigate to summary
       router.push(
         `/${merchantCode}/order-summary-cash?orderNumber=${orderData.data.orderNumber}&mode=${mode}`
       );
+
+      // ✅ 6. Clear cart context AFTER navigation (delayed)
+      setTimeout(() => {
+        clearCartContext();
+        console.log('🗑️ Cart context cleared (delayed)');
+      }, 100);
+
     } catch (err) {
+      console.error('❌ Payment error:', err);
       setError(err instanceof Error ? err.message : 'Terjadi kesalahan');
       setIsLoading(false);
+      setIsProcessingOrder(false);
     }
   };
 
-  const formatCurrency = (amount: number) => {
-    return `Rp${amount.toLocaleString('id-ID')}`;
-  };
+  // ✅ UNIFIED: Calculate order total using utility
+  const subtotal = cart ? calculateCartSubtotal(cart.items) : 0;
+  const { total } = calculatePriceBreakdown(subtotal);
 
-  if (!cart) {
-    return null;
+  // ✅ FIXED: Calculate with merchant's tax percentage
+  const priceBreakdown = cart ? calculateCartSubtotal(cart.items, merchantTaxPercentage) : { subtotal: 0, serviceCharge: 0, tax: 0, total: 0 };
+
+  // Loading state while cart initializes
+  if (cart === null) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-sm text-gray-600">Memuat data...</p>
+        </div>
+      </div>
+    );
   }
-
-  // Calculate item subtotal (price * quantity + addons)
-  const calculateItemSubtotal = (item: LocalCart['items'][0]) => {
-    const basePrice = item.price * item.quantity;
-    const addonsPrice = (item.addons || []).reduce((sum, addon) => sum + addon.price, 0) * item.quantity;
-    return basePrice + addonsPrice;
-  };
-
-  // Calculate total
-  const total = cart.items.reduce((sum, item) => sum + calculateItemSubtotal(item), 0);
 
   return (
     <div className="min-h-screen bg-white pb-6">
       {/* Fixed Header - 56px */}
       <header className="h-14 bg-white border-b border-[#E0E0E0] px-4 flex items-center justify-between sticky top-0 z-[100]">
-        {/* Left: Back Button */}
         <Link href={`/${merchantCode}/view-order?mode=${mode}`} className="flex items-center gap-2 text-[#1A1A1A]">
           <span className="text-xl">←</span>
           <span className="text-sm font-medium">Kembali</span>
         </Link>
 
-        {/* Center: Title */}
         <h1 className="text-base font-bold text-[#1A1A1A]">Pembayaran</h1>
 
-        {/* Right: Placeholder for symmetry */}
         <div className="w-16" />
       </header>
 
@@ -197,8 +362,9 @@ export default function PaymentPage() {
             <p className="text-sm font-semibold text-[#1A1A1A]">
               {mode === 'dinein' ? 'Makan di Tempat' : 'Ambil Sendiri'}
             </p>
-            {cart.tableNumber && (
-              <p className="text-xs text-[#666666]">Meja #{cart.tableNumber}</p>
+            {/* ✅ FIXED: Gunakan tableNumber dari state */}
+            {tableNumber && mode === 'dinein' && (
+              <p className="text-xs text-[#666666]">Meja #{tableNumber}</p>
             )}
           </div>
         </div>
@@ -215,8 +381,27 @@ export default function PaymentPage() {
           <h2 className="text-base font-semibold text-[#1A1A1A] mb-3">
             Informasi Pemesan
           </h2>
-          
+
           <form onSubmit={handleFormSubmit} className="space-y-4">
+            {/* ✅ FIXED: Table Number Input menggunakan state */}
+            {mode === 'dinein' && (
+              <div>
+                <label htmlFor="tableNumber" className="block text-sm font-semibold text-[#1A1A1A] mb-2">
+                  Nomor Meja <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="tableNumber"
+                  type="text"
+                  disabled
+                  value={tableNumber ? `Meja #${tableNumber}` : 'Belum dipilih'}
+                  className="w-full h-12 px-4 border border-[#E0E0E0] rounded-lg text-sm text-[#666666] bg-[#F9F9F9] cursor-not-allowed"
+                />
+                <p className="mt-1 text-xs text-[#999999]">
+                  📍 Nomor meja dipilih saat memulai pesanan
+                </p>
+              </div>
+            )}
+
             {/* Name Input */}
             <div>
               <label htmlFor="name" className="block text-sm font-semibold text-[#1A1A1A] mb-2">
@@ -264,21 +449,6 @@ export default function PaymentPage() {
               />
               <p className="mt-1 text-xs text-[#999999]">Opsional - untuk struk digital</p>
             </div>
-
-            {/* Table Number (Read-only for dine-in) */}
-            {mode === 'dinein' && cart.tableNumber && (
-              <div>
-                <label className="block text-sm font-semibold text-[#1A1A1A] mb-2">
-                  Nomor Meja <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  disabled
-                  value={`Meja #${cart.tableNumber}`}
-                  className="w-full h-12 px-4 border border-[#E0E0E0] rounded-lg text-sm text-[#666666] bg-[#F9F9F9]"
-                />
-              </div>
-            )}
           </form>
         </div>
 
@@ -302,13 +472,27 @@ export default function PaymentPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-[#666666]">Total Pembayaran</p>
-              <p className="text-xs text-[#999999] mt-0.5">{cart.items.length} item</p>
+              <p className="text-xs text-[#999999] mt-0.5">{cart?.items.length || 0} item</p>
             </div>
             <span className="text-xl font-bold text-[#FF6B35]">
-              {formatCurrency(total)}
+              {formatCurrency(Number(total))}
             </span>
           </div>
         </div>
+
+        {/* Expanded Details */}
+        {showPaymentDetails && (
+          <div className="pl-4 space-y-2 pt-2 border-t border-gray-300">
+            <div className="flex justify-between text-xs">
+              <span className="text-gray-500">Biaya Layanan (5%)</span>
+              <span className="text-gray-700">{formatCurrency(Number(priceBreakdown.serviceCharge))}</span>
+            </div>
+            <div className="flex justify-between text-xs">
+              <span className="text-gray-500">Pajak ({merchantTaxPercentage}%)</span> {/* ✅ Show actual % */}
+              <span className="text-gray-700">{formatCurrency(Number(priceBreakdown.tax))}</span>
+            </div>
+          </div>
+        )}
 
         {/* Submit Button */}
         <button
@@ -326,7 +510,12 @@ export default function PaymentPage() {
         isOpen={showConfirmModal}
         onClose={() => setShowConfirmModal(false)}
         onConfirm={handleConfirmPayment}
-        totalAmount={total}
+        totalAmount={Number(priceBreakdown.total)}
+        breakdown={{
+          subtotal: Number(priceBreakdown.subtotal),
+          serviceCharge: Number(priceBreakdown.serviceCharge),
+          tax: Number(priceBreakdown.tax),
+        }}
       />
     </div>
   );

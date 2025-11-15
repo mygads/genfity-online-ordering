@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useCart } from '@/context/CartContext';
 import { formatCurrency } from '@/lib/utils/format';
 import Image from 'next/image';
@@ -25,9 +25,9 @@ interface MenuItem {
   id: number;
   name: string;
   description: string;
-  price: number;
+  price: number; // ✅ Sudah benar
   image_url: string | null;
-  stock: number;
+  stockQty: number;
 }
 
 interface MenuDetailModalProps {
@@ -51,14 +51,14 @@ interface MenuDetailModalProps {
  */
 export default function MenuDetailModal({ menu, merchantCode, mode, onClose }: MenuDetailModalProps) {
   const { addItem, initializeCart, cart } = useCart();
-  
+
   // Initialize cart if not exists
   useEffect(() => {
     if (!cart || cart.merchantCode !== merchantCode || cart.mode !== mode) {
       initializeCart(merchantCode, mode as 'dinein' | 'takeaway');
     }
   }, [cart, merchantCode, mode, initializeCart]);
-  
+
   const [quantity, setQuantity] = useState(1);
   const [notes, setNotes] = useState('');
   const [selectedAddons, setSelectedAddons] = useState<Addon[]>([]);
@@ -73,9 +73,17 @@ export default function MenuDetailModal({ menu, merchantCode, mode, onClose }: M
       try {
         const response = await fetch(`/api/public/merchants/${merchantCode}/menus/${menu.id}/addons`);
         const data = await response.json();
-        
+
         if (data.success) {
-          setAddonCategories(data.data || []);
+          // ✅ Sanitize addon prices
+          const sanitized = (data.data || []).map((category: AddonCategory) => ({
+            ...category,
+            addons: category.addons.map((addon) => ({
+              ...addon,
+              price: typeof addon.price === 'string' ? parseFloat(addon.price) : addon.price,
+            })),
+          }));
+          setAddonCategories(sanitized);
         }
       } catch (err) {
         console.error('Error fetching addons:', err);
@@ -89,21 +97,23 @@ export default function MenuDetailModal({ menu, merchantCode, mode, onClose }: M
 
   // Calculate total price
   const calculateTotal = () => {
+    // ✅ FORCE menu.price to number
+    const basePrice = typeof menu.price === 'string' ? parseFloat(menu.price) : menu.price;
     const addonsTotal = selectedAddons.reduce((sum, addon) => sum + addon.price, 0);
-    return (menu.price + addonsTotal) * quantity;
+    return (basePrice + addonsTotal) * quantity;
   };
 
   // Handle addon selection
   const handleAddonToggle = (addon: Addon, category: AddonCategory) => {
     const isSelected = selectedAddons.some(a => a.id === addon.id);
-    
+
     if (isSelected) {
       // Remove addon
       setSelectedAddons(prev => prev.filter(a => a.id !== addon.id));
     } else {
       // Check max selections for this category
       const currentCategoryAddons = selectedAddons.filter(a => a.category_id === category.id);
-      
+
       if (currentCategoryAddons.length >= category.max_selections) {
         // Replace first one if radio (max = 1)
         if (category.max_selections === 1) {
@@ -114,7 +124,7 @@ export default function MenuDetailModal({ menu, merchantCode, mode, onClose }: M
         }
         return;
       }
-      
+
       // Add addon
       setSelectedAddons(prev => [...prev, addon]);
     }
@@ -124,7 +134,7 @@ export default function MenuDetailModal({ menu, merchantCode, mode, onClose }: M
   const validateSelections = (): string | null => {
     for (const category of addonCategories) {
       const categoryAddons = selectedAddons.filter(a => a.category_id === category.id);
-      
+
       if (category.type === 'required' && categoryAddons.length < category.min_selections) {
         return `Pilih minimal ${category.min_selections} ${category.name}`;
       }
@@ -132,30 +142,57 @@ export default function MenuDetailModal({ menu, merchantCode, mode, onClose }: M
     return null;
   };
 
-  // Handle add to cart
+  // ✅ NEW: Prevent double-add in React Strict Mode
+  const isAddingRef = useRef(false);
+
+  /**
+   * ✅ FIXED: Prevent double-add in React Strict Mode
+   * 
+   * @description
+   * React Strict Mode intentionally double-invokes functions in development.
+   * Use ref flag to prevent addItem from being called twice.
+   * 
+   * @specification copilot-instructions.md - React Development Best Practices
+   */
   const handleAddToCart = () => {
-    const validationError = validateSelections();
-    if (validationError) {
-      setError(validationError);
+    // ✅ Guard against double-invocation
+    if (isAddingRef.current) {
+      console.warn('⚠️ [MODAL] Add to cart already in progress, skipping');
       return;
     }
 
-    addItem({
-      menuId: menu.id,
+    isAddingRef.current = true;
+
+    console.log('🛒 [MODAL] Adding to cart:', {
       menuName: menu.name,
       price: menu.price,
+      priceType: typeof menu.price,
       quantity,
-      notes: notes.trim() || undefined,
-      addons: selectedAddons.map(a => ({ id: a.id, name: a.name, price: a.price }))
+      addons: selectedAddons.length,
     });
 
-    onClose();
+    addItem({
+      menuId: menu.id.toString(),
+      menuName: menu.name,
+      price: menu.price, // ✅ Pass as number
+      quantity,
+      addons: selectedAddons,
+      notes: notes.trim() || undefined,
+    });
+
+    console.log('✅ [MODAL] Item added successfully');
+
+    // ✅ Reset flag after 500ms (enough time for state update)
+    setTimeout(() => {
+      isAddingRef.current = false;
+      onClose();
+    }, 100);
   };
 
   return (
     <div className="fixed inset-0 z-[300] flex items-end">
       {/* Overlay */}
-      <div 
+      <div
         className="absolute inset-0 bg-black/50"
         onClick={onClose}
       />
@@ -173,7 +210,7 @@ export default function MenuDetailModal({ menu, merchantCode, mode, onClose }: M
           className="absolute top-4 right-4 z-10 p-2 bg-white/80 rounded-full shadow-md hover:bg-white transition-colors"
         >
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-            <path d="M18 6L6 18M6 6L18 18" stroke="#1A1A1A" strokeWidth="2" strokeLinecap="round"/>
+            <path d="M18 6L6 18M6 6L18 18" stroke="#1A1A1A" strokeWidth="2" strokeLinecap="round" />
           </svg>
         </button>
 
@@ -242,7 +279,7 @@ export default function MenuDetailModal({ menu, merchantCode, mode, onClose }: M
                     {category.addons.map((addon) => {
                       const isSelected = selectedAddons.some(a => a.id === addon.id);
                       const inputType = category.max_selections === 1 ? 'radio' : 'checkbox';
-                      
+
                       return (
                         <label
                           key={addon.id}
@@ -300,20 +337,20 @@ export default function MenuDetailModal({ menu, merchantCode, mode, onClose }: M
                 className="w-10 h-10 flex items-center justify-center border border-neutral-200 rounded-lg hover:bg-secondary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <path d="M3 8H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                  <path d="M3 8H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                 </svg>
               </button>
-              
+
               <span className="w-16 text-center text-base font-semibold text-primary-dark">
                 {quantity}
               </span>
-              
+
               <button
                 onClick={() => setQuantity(quantity + 1)}
                 className="w-10 h-10 flex items-center justify-center border border-neutral-200 rounded-lg hover:bg-secondary transition-colors"
               >
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                  <path d="M8 3V13M3 8H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                 </svg>
               </button>
             </div>

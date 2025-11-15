@@ -6,7 +6,10 @@
 import prisma from '@/lib/db/client';
 import { OrderStatus, OrderType } from '@prisma/client';
 
-export class OrderRepository {
+class OrderRepository {
+  // ✅ CORRECT: Expose Prisma client as readonly property
+  public readonly prisma = prisma;
+
   /**
    * Create new order with items and addons (transaction)
    */
@@ -376,7 +379,54 @@ export class OrderRepository {
     const orderNum = `ORD-${dateStr}-${String(count + 1).padStart(4, '0')}`;
     return orderNum;
   }
+
+  /**
+   * Count orders by merchant and date range
+   *
+   * @param merchantId - Merchant ID
+   * @param startDate - Start date (inclusive)
+   * @param endDate - End date (inclusive)
+   * @returns Count of orders
+   *
+   * @specification STEP_05 - Repository pattern
+   */
+  async countOrdersByMerchantAndDate(
+    merchantId: bigint,
+    startDate: Date,
+    endDate: Date
+  ): Promise<number> {
+    return await prisma.order.count({
+      where: {
+        merchantId,
+        createdAt: {
+          gte: startDate,
+          lte: endDate,
+        },
+      },
+    });
+  }
+
+  /**
+   * Check if order number exists for merchant
+   *
+   * @param merchantId - Merchant ID
+   * @param orderNumber - Order number to check
+   * @returns True if exists, false otherwise
+   *
+   * @specification STEP_05 - Repository pattern
+   */
+  async orderNumberExists(
+    merchantId: bigint,
+    orderNumber: string
+  ): Promise<boolean> {
+    const existing = await prisma.order.findFirst({
+      where: {
+        merchantId,
+        orderNumber,
+      },
+    });
+    return !!existing;
+  }
 }
 
-const orderRepository = new OrderRepository();
-export default orderRepository;
+export default new OrderRepository();

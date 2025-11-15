@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
-import { db } from '@/lib/db';
+import prisma from '@/lib/db/client'; // ✅ Use Prisma client
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 const JWT_EXPIRES_IN = '30d'; // 30 days for customers
@@ -15,18 +15,36 @@ interface LoginRequestBody {
  * Customer Login/Register Endpoint
  * POST /api/public/auth/customer-login
  * 
- * Seamless authentication:
- * - If email exists → login (update name/phone if provided)
- * - If email doesn't exist → register new customer
+ * @specification STEP_02_AUTHENTICATION_JWT.txt - Customer Auth Flow
  * 
- * @returns JWT token with user data
+ * @description
+ * Seamless authentication for customers:
+ * - If email exists → login (update name/phone if provided)
+ * - If email doesn't exist → auto-register as CUSTOMER
+ * 
+ * @security
+ * - Email validation (RFC 5322 format)
+ * - Prisma parameterized queries (SQL injection safe)
+ * - JWT token with 30-day expiry
+ * - No password required for customers
+ * 
+ * @returns {Object} Standard response format
+ * @returns {boolean} success - Operation status
+ * @returns {Object} data - User data + JWT token
+ * @returns {string} data.accessToken - JWT token for authentication
+ * @returns {number} data.expiresAt - Token expiry timestamp (milliseconds)
+ * @returns {Object} data.user - User profile data
+ * @returns {string} message - Success/error message
+ * @returns {number} statusCode - HTTP status code
  */
 export async function POST(request: NextRequest) {
   try {
     const body: LoginRequestBody = await request.json();
     const { email, name, phone } = body;
 
-    // Validation
+    // ========================================
+    // VALIDATION (STEP_02 Section 3.1)
+    // ========================================
     if (!email || typeof email !== 'string') {
       return NextResponse.json(
         {
@@ -52,23 +70,50 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if user exists
-    const existingUser = await db.query(
-      `SELECT id, email, name, phone, role, is_active 
-       FROM users 
-       WHERE email = $1 AND role = 'CUSTOMER'`,
-      [emailTrimmed]
-    );
+    // ========================================
+    // DATABASE QUERY (STEP_01 users table)
+    // ========================================
+    
+    /**
+     * ✅ Check if user exists using Prisma
+     * 
+     * @security Parameterized query (SQL injection safe)
+     * @performance Uses index on email column
+     * 
+     * Replaces:
+     * const existingUser = await db.query(
+     *   `SELECT id, email, name, phone, role, is_active 
+     *    FROM users 
+     *    WHERE email = $1 AND role = 'CUSTOMER'`,
+     *   [emailTrimmed]
+     * );
+     */
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        email: emailTrimmed,
+        role: 'CUSTOMER',
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        phone: true,
+        role: true,
+        isActive: true,
+      },
+    });
 
     let userId: bigint;
     let userName: string;
     let userPhone: string | null;
 
-    if (existingUser.rows.length > 0) {
-      // User exists → Login
-      const user = existingUser.rows[0];
-
-      if (!user.is_active) {
+    if (existingUser) {
+      // ========================================
+      // EXISTING USER - LOGIN FLOW
+      // ========================================
+      
+      // Check if account is active
+      if (!existingUser.isActive) {
         return NextResponse.json(
           {
             success: false,
@@ -80,21 +125,27 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      userId = BigInt(user.id);
-      userName = name?.trim() || user.name;
-      userPhone = phone?.trim() || user.phone;
+      userId = existingUser.id;
+      userName = name?.trim() || existingUser.name;
+      userPhone = phone?.trim() || existingUser.phone;
 
-      // Update name/phone if provided and different
-      if ((name && name.trim() !== user.name) || (phone && phone.trim() !== user.phone)) {
-        await db.query(
-          `UPDATE users 
-           SET name = $1, phone = $2, updated_at = NOW() 
-           WHERE id = $3`,
-          [userName, userPhone, userId.toString()]
-        );
+      // ✅ Update name/phone if provided and different
+      if ((name && name.trim() !== existingUser.name) || (phone && phone.trim() !== existingUser.phone)) {
+        await prisma.user.update({
+          where: { id: userId },
+          data: {
+            name: userName,
+            phone: userPhone,
+          },
+        });
       }
+
     } else {
-      // User doesn't exist → Register
+      // ========================================
+      // NEW USER - REGISTER FLOW
+      // ========================================
+      
+      // Name required for new registration
       if (!name || typeof name !== 'string' || !name.trim()) {
         return NextResponse.json(
           {
@@ -107,22 +158,56 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const insertResult = await db.query(
-        `INSERT INTO users (email, name, phone, role, is_active) 
-         VALUES ($1, $2, $3, 'CUSTOMER', true) 
-         RETURNING id`,
-        [emailTrimmed, name.trim(), phone?.trim() || null]
-      );
+      /**
+       * ✅ Create new customer using Prisma
+       * 
+       * @security No password required (email-based auth)
+       * @default role='CUSTOMER', isActive=true
+       */
+      const newUser = await prisma.user.create({
+        data: {
+          email: emailTrimmed,
+          name: name.trim(),
+          phone: phone?.trim() || null,
+          passwordHash: '', // No password for customers (magic link auth)
+          role: 'CUSTOMER',
+          isActive: true,
+        },
+        select: {
+          id: true,
+        },
+      });
 
-      userId = BigInt(insertResult.rows[0].id);
+      userId = newUser.id;
       userName = name.trim();
       userPhone = phone?.trim() || null;
     }
 
-    // Generate JWT token
+    // ========================================
+    // JWT GENERATION (STEP_02 Section 4.2)
+    // ========================================
+    
+    /**
+     * ✅ FIXED: JWT payload with correct field names
+     * 
+     * @specification STEP_02_AUTHENTICATION_JWT.txt - Token Structure
+     * 
+     * @security
+     * - customerId: string (required by auth.ts verification)
+     * - name: string (required by auth.ts verification)
+     * - email: string (required by auth.ts verification)
+     * - role: CUSTOMER (for authorization)
+     * 
+     * @critical
+     * Field names MUST match CustomerTokenPayload interface in auth.ts:
+     * - customerId (NOT userId)
+     * - name (NOT optional)
+     * - email
+     */
     const payload = {
-      userId: userId.toString(),
+      customerId: userId.toString(), // ✅ Match auth.ts interface
       email: emailTrimmed,
+      name: userName,                // ✅ Required by auth.ts
       role: 'CUSTOMER',
     };
 
@@ -143,7 +228,7 @@ export async function POST(request: NextRequest) {
             role: 'CUSTOMER',
           },
         },
-        message: existingUser.rows.length > 0 ? 'Login berhasil' : 'Akun berhasil dibuat',
+        message: existingUser ? 'Login berhasil' : 'Akun berhasil dibuat',
         statusCode: 200,
       },
       { status: 200 }

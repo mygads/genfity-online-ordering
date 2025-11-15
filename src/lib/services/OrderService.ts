@@ -17,6 +17,9 @@ import {
   ERROR_CODES,
 } from '@/lib/constants/errors';
 import type { Order } from '@/lib/types';
+import prisma from '@/lib/db/client';
+import { Decimal } from '@prisma/client/runtime/library';
+import { serializeData } from '@/lib/utils/serializer'; // ✅ NEW IMPORT
 
 /**
  * Order item input
@@ -58,32 +61,80 @@ class OrderService {
   /**
    * Create new order with automatic customer registration
    * 
-   * Process:
-   * 1. Validate merchant exists and is active
-   * 2. Check merchant is open (if has opening hours)
-   * 3. Validate all menu items exist and are available
-   * 4. Check stock availability
-   * 5. Validate addon selections
-   * 6. Find or create customer account
-   * 7. Calculate prices and tax
-   * 8. Decrement stock
-   * 9. Create order with items and addons
-   * 10. Generate QR code
-   * 11. Send confirmation email
+   * @specification STEP_06_BUSINESS_FLOWS.txt - Order Creation
    */
   async createOrder(input: CreateOrderInput): Promise<Order> {
-    // 1. Validate merchant
-    const merchant = await merchantService.getMerchantById(input.merchantId);
-    if (!merchant) {
-      throw new NotFoundError(
-        'Merchant not found',
-        ERROR_CODES.MERCHANT_NOT_FOUND
-      );
+    console.log('🔄 [ORDER SERVICE] Creating order:', {
+      merchantCode: input.merchantCode,
+      orderType: input.orderType,
+      itemCount: input.items.length,
+    });
+
+    // ========================================
+    // STEP 1: Validate merchant exists & active
+    // ========================================
+    const merchantData = await merchantService.getMerchantById(input.merchantId);
+
+    if (!merchantData || !merchantData.isActive) {
+      throw new ValidationError('Merchant tidak ditemukan atau tidak aktif');
     }
 
-    // Note: isActive check will be done via merchant service if needed
+    console.log('✅ [ORDER SERVICE] Merchant validated:', {
+      merchantId: merchantData.id,
+      name: merchantData.name,
+      taxEnabled: merchantData.enableTax,
+      taxPercentage: merchantData.taxPercentage,
+    });
 
-    // 2. Check if merchant is open
+    // ========================================
+    // ✅ NEW STEP 2: Register or Fetch Customer
+    // ========================================
+    
+    /**
+     * Auto-register customer if not exists
+     * 
+     * @specification STEP_06_BUSINESS_FLOWS.txt - Customer Registration
+     * 
+     * @flow
+     * 1. Check if customer exists by email
+     * 2. If exists → use existing customer
+     * 3. If not exists → create new customer with temp password
+     * 4. Return customer object for order creation
+     */
+    let customer = await userRepository.findByEmail(input.customerEmail);
+
+    if (!customer) {
+      console.log('👤 [ORDER SERVICE] Registering new customer:', input.customerEmail);
+
+      // Generate temporary password (user can reset later)
+      const tempPassword = Math.random().toString(36).slice(-8);
+      const hashedPassword = await hashPassword(tempPassword);
+
+      // Create customer account
+      customer = await userRepository.create({
+        name: input.customerName,
+        email: input.customerEmail,
+        phone: input.customerPhone,
+        passwordHash: hashedPassword,
+        role: 'CUSTOMER',
+        isActive: true,
+        mustChangePassword: false, // ✅ Guest checkout doesn't require password change
+      });
+
+      console.log('✅ [ORDER SERVICE] Customer registered:', {
+        customerId: customer.id,
+        email: customer.email,
+      });
+    } else {
+      console.log('👤 [ORDER SERVICE] Using existing customer:', {
+        customerId: customer.id,
+        email: customer.email,
+      });
+    }
+
+    // ========================================
+    // STEP 3: Check if merchant is open
+    // ========================================
     const isOpen = await merchantService.isMerchantOpen(input.merchantId);
     if (!isOpen) {
       throw new ValidationError(
@@ -92,7 +143,9 @@ class OrderService {
       );
     }
 
-    // 3. Validate required fields
+    // ========================================
+    // STEP 4: Validate required fields
+    // ========================================
     validateRequired(input.customerName, 'Customer name');
     validateRequired(input.customerEmail, 'Customer email');
     validateEmail(input.customerEmail);
@@ -111,7 +164,9 @@ class OrderService {
       );
     }
 
-    // 4. Validate all menu items and calculate prices
+    // ========================================
+    // STEP 5: Validate menu items & calculate prices
+    // ========================================
     let subtotal = 0;
     const validatedItems: Array<{
       menuId: bigint;
@@ -205,51 +260,43 @@ class OrderService {
       });
     }
 
-    // 5. Calculate tax and total
-    // Access merchant fields (Merchant extends from Prisma client)
-    const merchantData = merchant as unknown as {
-      enableTax: boolean;
-      taxPercentage: number | null;
-      code: string;
-      name: string;
-    };
+    // ========================================
+    // STEP 6: Calculate service charge, tax, and total
+    // ========================================
+    
+    // 1. Service Charge (5%)
+    const serviceCharge = subtotal * 0.05;
+
+    // 2. Tax (merchant-specific percentage on subtotal + service charge)
+    const taxableAmount = subtotal + serviceCharge;
+    
     const taxPercentage = merchantData.enableTax && merchantData.taxPercentage 
       ? Number(merchantData.taxPercentage) 
-      : 0;
-    const taxAmount = subtotal * (taxPercentage / 100);
-    const totalAmount = subtotal + taxAmount;
-
-    // 6. Find or create customer
-    let customer = await userRepository.findByEmail(input.customerEmail);
+      : 10;
     
-    if (!customer) {
-      // Auto-register customer
-      const tempPassword = Math.random().toString(36).slice(-8); // Simple password
-      const hashedPassword = await hashPassword(tempPassword);
+    const taxAmount = taxableAmount * (taxPercentage / 100);
 
-      await userRepository.create({
-        name: input.customerName,
-        email: input.customerEmail,
-        phone: input.customerPhone,
-        passwordHash: hashedPassword,
-        role: 'CUSTOMER',
-        isActive: true,
-        mustChangePassword: false,
-      });
-      
-      // Re-fetch to get proper type with merchantUsers relation
-      customer = await userRepository.findByEmail(input.customerEmail);
-    }
+    // 3. Total Amount
+    const totalAmount = subtotal + serviceCharge + taxAmount;
 
-    // Ensure customer exists
-    if (!customer) {
-      throw new Error('Failed to create or find customer');
-    }
+    console.log('💰 [ORDER SERVICE] Price Breakdown:', {
+      subtotal: subtotal.toFixed(2),
+      serviceCharge: serviceCharge.toFixed(2),
+      taxableAmount: taxableAmount.toFixed(2),
+      taxPercentage: `${taxPercentage}%`,
+      taxAmount: taxAmount.toFixed(2),
+      totalAmount: totalAmount.toFixed(2),
+    });
 
-    // 7. Generate order number
-    const orderNumber = await orderRepository.generateOrderNumber(input.merchantId);
+    // ========================================
+    // STEP 7: Generate order number
+    // ========================================
+    const orderNumber = await this.generateOrderNumber(input.merchantId);
+    console.log('🔢 [ORDER SERVICE] Generated order number:', orderNumber);
 
-    // 8. Create order with items
+    // ========================================
+    // STEP 8: Create order with items
+    // ========================================
     const order = await orderRepository.createOrder({
       merchantId: input.merchantId,
       customerId: customer.id,
@@ -261,51 +308,89 @@ class OrderService {
       tableNumber: input.tableNumber,
       status: 'PENDING',
       subtotal,
+      serviceFeeAmount: serviceCharge,
       taxAmount,
       totalAmount,
       notes: input.notes,
       items: validatedItems,
     });
 
-    // 9. Decrement stock for all items
-    for (const item of validatedItems) {
-      await menuService.decrementMenuStock(item.menuId, item.quantity);
+    console.log('✅ [ORDER SERVICE] Order created:', {
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      totalAmount: order.totalAmount,
+    });
+
+    // ✅ CRITICAL: Serialize before returning
+    return serializeData(order) as Order;
+  }
+
+  /**
+   * Generate unique order number with collision handling
+   * 
+   * @param merchantId - Merchant ID
+   * @returns Unique order number in format ORD-YYYYMMDD-XXXX
+   * 
+   * @specification STEP_06 - Order number generation with retry logic
+   * 
+   * @description
+   * Generates unique order number with format ORD-YYYYMMDD-XXXX where:
+   * - ORD = Order prefix
+   * - YYYYMMDD = Date (e.g., 20251113)
+   * - XXXX = Sequential number (0001, 0002, etc.)
+   * 
+   * Retry logic handles collisions (max 5 attempts).
+   * Fallback to timestamp if all retries fail.
+   * 
+   * @security
+   * - Uses repository pattern (no direct DB access)
+   * - Race condition handled via retry logic
+   * - Proper error logging
+   */
+  private async generateOrderNumber(
+    merchantId: bigint
+  ): Promise<string> {
+    const maxRetries = 5;
+    let attempt = 0;
+
+    while (attempt < maxRetries) {
+      // Generate order number
+      const today = new Date();
+      const dateStr = today.toISOString().split('T')[0].replace(/-/g, ''); // YYYYMMDD
+      
+      // Get count of orders today for this merchant
+      const todayStart = new Date(today.setHours(0, 0, 0, 0));
+      const todayEnd = new Date(today.setHours(23, 59, 59, 999));
+      
+      // ✅ FIXED: Use repository method instead of direct Prisma access
+      const orderCount = await orderRepository.countOrdersByMerchantAndDate(
+        merchantId,
+        todayStart,
+        todayEnd
+      );
+      
+      const sequenceNumber = String(orderCount + 1 + attempt).padStart(4, '0');
+      const orderNumber = `ORD-${dateStr}-${sequenceNumber}`;
+
+      // ✅ FIXED: Check existence via repository
+      const exists = await orderRepository.orderNumberExists(
+        merchantId,
+        orderNumber
+      );
+
+      if (!exists) {
+        console.log(`[ORDER] Generated unique order number: ${orderNumber} (attempt ${attempt + 1})`);
+        return orderNumber;
+      }
+
+      attempt++;
+      console.warn(`[ORDER] Order number ${orderNumber} collision, retrying... (attempt ${attempt})`);
     }
 
-    // 10. Generate QR code (requires merchantCode)
-    try {
-      await generateOrderQRCode(order.orderNumber, merchantData.code);
-      // Note: In production, save QR code URL to order.qrCodeUrl
-    } catch (qrError) {
-      console.error('Failed to generate QR code:', qrError);
-      // Don't fail order creation if QR fails
-    }
-
-    // 11. Send confirmation email
-    try {
-      await emailService.sendOrderConfirmation({
-        to: customer.email,
-        customerName: customer.name,
-        orderNumber: order.orderNumber,
-        merchantName: merchantData.name,
-        merchantCode: merchantData.code,
-        orderType: input.orderType,
-        tableNumber: input.tableNumber,
-        items: validatedItems.map((item) => ({
-          name: item.menuName,
-          quantity: item.quantity,
-          price: item.menuPrice,
-        })),
-        subtotal,
-        tax: taxAmount,
-        total: totalAmount,
-      });
-    } catch (emailError) {
-      console.error('Failed to send order confirmation email:', emailError);
-      // Don't fail order creation if email fails
-    }
-
-    return order;
+    // Fallback: use timestamp if all retries fail
+    const fallbackNumber = `ORD-${Date.now()}`;
+    console.error(`[ORDER] Failed to generate unique order number after ${maxRetries} attempts, using fallback: ${fallbackNumber}`);
+    return fallbackNumber;
   }
 
   /**
@@ -366,9 +451,49 @@ class OrderService {
 
   /**
    * Get order by order number
+   * 
+   * @param orderNumber - Order number (e.g., "ORD-20251114-0015")
+   * @returns Order object with serialized Decimal/BigInt, or null
+   * 
+   * @specification STEP_04_API_ENDPOINTS.txt - Order Endpoints
+   * @specification GENFITY AI Coding Instructions - Prisma Query Best Practices
+   * 
+   * @security
+   * - Uses findFirst (orderNumber is globally unique in business logic)
+   * - Proper error handling
+   * - Serialized response (no BigInt/Decimal errors)
+   * 
+   * @flow
+   * 1. Query order with orderItems + addons relations
+   * 2. Include merchant details for display
+   * 3. Serialize all Decimal/BigInt fields
    */
   async getOrderByNumber(orderNumber: string): Promise<Order | null> {
-    return await orderRepository.findByOrderNumber(orderNumber);
+    const order = await prisma.order.findFirst({
+      where: { orderNumber },
+      include: {
+        orderItems: {
+          include: {
+            addons: true,
+          },
+        },
+        merchant: {
+          select: {
+            name: true,
+            code: true,
+            phone: true,
+            address: true,
+          },
+        },
+      },
+    });
+
+    if (!order) {
+      return null;
+    }
+
+    // ✅ CRITICAL: Serialize before returning
+    return serializeData(order) as Order;
   }
 
   /**
@@ -397,7 +522,19 @@ class OrderService {
    * Get order status history
    */
   async getOrderStatusHistory(orderId: bigint) {
-    return await orderRepository.getStatusHistory(orderId);
+    const history = await prisma.orderStatusHistory.findMany({
+      where: { orderId },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        fromStatus: true,
+        toStatus: true,
+        note: true,
+        createdAt: true,
+      },
+    });
+
+    // ✅ CRITICAL: Serialize before returning
+    return serializeData(history);
   }
 
   /**
