@@ -5,7 +5,7 @@
  * Request Body:
  * {
  *   "email": "admin@genfity.com",
- *   "password": "Admin@123456",
+ *   "password": "1234abcd",
  *   "rememberMe": false // Optional, extends session to 7 days for admin roles
  * }
  * 

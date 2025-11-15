@@ -38,7 +38,7 @@ async function main() {
 
     console.log('✅ Super Admin created:');
     console.log('   Email: admin@genfity.com');
-    console.log('   Password: Admin@123456');
+    console.log('   Password: 1234abcd');
     console.log('   ⚠️  Please change this password in production!');
   }
 
@@ -124,43 +124,6 @@ async function main() {
 
   if (!existingStaff) {
     const staffPassword = await bcrypt.hash('Staff@123456', 10);
-
-    const merchantStaff = await prisma.user.create({
-      data: {
-        name: 'Merchant Staff',
-        email: 'staff@kopikenangan.com',
-        passwordHash: staffPassword,
-        role: 'MERCHANT_STAFF',
-        isActive: true,
-        mustChangePassword: false,
-      },
-    });
-
-    // Link staff to merchant
-    await prisma.merchantUser.create({
-      data: {
-        merchantId: merchant.id,
-        userId: merchantStaff.id,
-        role: 'STAFF',
-      },
-    });
-
-    console.log('✅ Merchant Staff created:');
-    console.log('   Email: staff@kopikenangan.com');
-    console.log('   Password: Staff@123456');
-  } else {
-    console.log('✅ Merchant Staff already exists');
-  }
-
-  // ============================================
-  // 4. CREATE MERCHANT STAFF USER
-  // ============================================
-  const existingStaff = await prisma.user.findUnique({
-    where: { email: 'staff@kopikenangan.com' },
-  });
-
-  if (!existingStaff) {
-    const staffPassword = await bcrypt.hash('1234abcd', 10);
 
     const merchantStaff = await prisma.user.create({
       data: {

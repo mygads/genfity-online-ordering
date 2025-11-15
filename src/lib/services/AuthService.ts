@@ -526,6 +526,114 @@ class AuthService {
 
     await sessionRepository.revoke(sessionId);
   }
+
+  /**
+   * Request password reset
+   * Generates reset token and sends email
+   * 
+   * @param email User email
+   * @returns Reset token (for email)
+   */
+  async requestPasswordReset(email: string): Promise<{
+    resetToken: string;
+    expiresAt: Date;
+  }> {
+    // Validate email
+    validateEmail(email);
+
+    // Find user by email
+    const user = await userRepository.findByEmail(email.toLowerCase().trim());
+
+    if (!user) {
+      // Don't reveal if user exists for security
+      throw new NotFoundError(
+        'If this email exists, a reset link has been sent',
+        ERROR_CODES.USER_NOT_FOUND
+      );
+    }
+
+    // Check if user is active
+    if (!user.isActive) {
+      throw new AuthenticationError(
+        'Account is deactivated',
+        ERROR_CODES.USER_INACTIVE
+      );
+    }
+
+    // Generate reset token (random 32 bytes)
+    const crypto = require('crypto');
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetTokenHash = await hashPassword(resetToken); // Hash token for storage
+
+    // Token expires in 1 hour
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + 1);
+
+    // Save reset token to user
+    await userRepository.update(user.id, {
+      resetToken: resetTokenHash,
+      resetTokenExpiresAt: expiresAt,
+    });
+
+    return {
+      resetToken, // Return plain token for email
+      expiresAt,
+    };
+  }
+
+  /**
+   * Reset password with token
+   * 
+   * @param token Reset token from email
+   * @param newPassword New password
+   */
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    // Validate new password
+    validatePassword(newPassword);
+
+    // Find user by reset token (check all users with non-null resetToken)
+    const users = await userRepository.findByResetToken();
+
+    let targetUser = null;
+    for (const user of users) {
+      if (user.resetToken) {
+        const isTokenValid = await comparePassword(token, user.resetToken);
+        if (isTokenValid) {
+          targetUser = user;
+          break;
+        }
+      }
+    }
+
+    if (!targetUser) {
+      throw new AuthenticationError(
+        'Invalid or expired reset token',
+        ERROR_CODES.TOKEN_INVALID
+      );
+    }
+
+    // Check if token expired
+    if (!targetUser.resetTokenExpiresAt || targetUser.resetTokenExpiresAt < new Date()) {
+      throw new AuthenticationError(
+        'Reset token has expired',
+        ERROR_CODES.TOKEN_EXPIRED
+      );
+    }
+
+    // Hash new password
+    const newPasswordHash = await hashPassword(newPassword);
+
+    // Update password and clear reset token
+    await userRepository.update(targetUser.id, {
+      passwordHash: newPasswordHash,
+      resetToken: null,
+      resetTokenExpiresAt: null,
+      mustChangePassword: false,
+    });
+
+    // Optionally: Revoke all sessions (force re-login)
+    await sessionRepository.revokeAllByUserId(targetUser.id);
+  }
 }
 
 const authService = new AuthService();

@@ -3,7 +3,7 @@
 import { Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { ChevronLeftIcon, EyeIcon, EyeCloseIcon, LockIcon } from '@/icons';
+import { ChevronLeftIcon, EyeIcon, EyeCloseIcon } from '@/icons';
 import Label from '@/components/form/Label';
 import Checkbox from '@/components/form/input/Checkbox';
 import { saveAdminAuth } from '@/lib/utils/adminAuth';
@@ -164,18 +164,11 @@ function AdminLoginForm() {
           <div>
             {/* Header */}
             <div className="mb-5 sm:mb-8">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="inline-flex items-center justify-center w-12 h-12 bg-brand-500 rounded-lg">
-                  <LockIcon className="w-6 h-6 fill-white" />
-                </div>
-                <div>
-                  <h1 className="font-semibold text-gray-800 text-title-sm dark:text-white/90 sm:text-title-md">
-                    Admin GENFITY
-                  </h1>
-                </div>
-              </div>
+              <h1 className="mb-2 font-semibold text-gray-800 text-title-sm dark:text-white/90 sm:text-title-md">
+                Sign In
+              </h1>
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                Masuk ke panel administrasi untuk mengelola sistem
+                Enter your email and password to sign in!
               </p>
             </div>
 
@@ -228,7 +221,7 @@ function AdminLoginForm() {
                       id="password"
                       name="password"
                       type={showPassword ? 'text' : 'password'}
-                      placeholder="Masukkan password Anda"
+                      placeholder="Enter your password"
                       value={formData.password}
                       onChange={handleChange}
                       required
@@ -240,7 +233,7 @@ function AdminLoginForm() {
                       onClick={() => setShowPassword(!showPassword)}
                       className="absolute z-30 -translate-y-1/2 cursor-pointer right-4 top-1/2"
                       role="button"
-                      aria-label={showPassword ? 'Sembunyikan password' : 'Tampilkan password'}
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
                     >
                       {showPassword ? (
                         <EyeIcon className="fill-gray-500 dark:fill-gray-400" />
@@ -255,20 +248,15 @@ function AdminLoginForm() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <Checkbox checked={rememberMe} onChange={setRememberMe} />
-                    <div>
-                      <span className="block font-normal text-gray-700 text-theme-sm dark:text-gray-400">
-                        Remember me
-                      </span>
-                      <span className="block text-xs text-gray-500 dark:text-gray-500">
-                        {rememberMe ? 'Session: 7 hari' : 'Session: 1 hari'}
-                      </span>
-                    </div>
+                    <span className="block font-normal text-gray-700 text-theme-sm dark:text-gray-400">
+                      Keep me logged in
+                    </span>
                   </div>
                   <Link
                     href="/admin/forgot-password"
                     className="text-sm text-brand-500 hover:text-brand-600 dark:text-brand-400 dark:hover:text-brand-300"
                   >
-                    Lupa Password?
+                    Forgot password?
                   </Link>
                 </div>
 
@@ -279,31 +267,19 @@ function AdminLoginForm() {
                     disabled={isLoading}
                     className="w-full inline-flex items-center justify-center font-medium gap-2 rounded-lg transition px-4 py-3 text-sm bg-brand-500 text-white shadow-theme-xs hover:bg-brand-600 disabled:bg-brand-300 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {isLoading ? 'Memproses...' : 'Sign in'}
+                    {isLoading ? 'Signing in...' : 'Sign in'}
                   </button>
                 </div>
               </div>
             </form>
 
-            {/* Info Box */}
-            <div className="mt-8 p-4 bg-blue-50 border border-blue-200 rounded-lg dark:bg-blue-900/20 dark:border-blue-800">
-              <p className="text-xs text-blue-800 dark:text-blue-300 leading-relaxed">
-                <span className="font-semibold">ℹ️ Informasi:</span><br />
-                Halaman ini khusus untuk administrator GENFITY. 
-                Jika Anda pelanggan, silakan{' '}
-                <Link href="/" className="text-blue-600 hover:underline font-semibold dark:text-blue-400">
-                  kembali ke halaman utama
-                </Link>.
-              </p>
-            </div>
-
-            {/* Default Credentials Info (Development Only) */}
+            {/* Development Credentials */}
             {process.env.NODE_ENV === 'development' && (
-              <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg dark:bg-yellow-900/20 dark:border-yellow-800">
-                <p className="text-xs text-yellow-800 dark:text-yellow-300 font-mono">
-                  <span className="font-semibold">🔐 Development Mode:</span><br />
+              <div className="mt-5 p-4 bg-gray-50 border border-gray-200 rounded-lg dark:bg-gray-800/50 dark:border-gray-700">
+                <p className="text-xs text-gray-600 dark:text-gray-400 font-mono">
+                  <span className="font-semibold">🔐 Dev Mode:</span><br />
                   Email: admin@genfity.com<br />
-                  Password: Admin@123456
+                  Password: 1234abcd
                 </p>
               </div>
             )}
@@ -313,27 +289,24 @@ function AdminLoginForm() {
 
       {/* Right Side - Branding (Hidden on mobile) */}
       <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-brand-500 to-brand-600 dark:from-brand-600 dark:to-brand-700 items-center justify-center p-12">
-        <div className="max-w-md text-center text-white">
+        <div className="max-w-md text-white">
           <div className="mb-8">
-            <div className="inline-flex items-center justify-center w-20 h-20 bg-white/10 backdrop-blur-sm rounded-2xl mb-6">
-              <LockIcon className="w-10 h-10 fill-white" />
-            </div>
             <h2 className="text-3xl font-bold mb-4">
-              Welcome to GENFITY Admin
+              Welcome to GENFITY
             </h2>
             <p className="text-white/80 text-lg">
-              Kelola restoran Anda dengan mudah dan efisien
+              Powerful restaurant management system to grow your business
             </p>
           </div>
-          <div className="space-y-4 text-left">
+          <div className="space-y-4">
             <div className="flex items-start gap-3">
               <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                 <span className="text-sm">✓</span>
               </div>
               <div>
-                <h3 className="font-semibold mb-1">Kelola Menu & Pesanan</h3>
+                <h3 className="font-semibold mb-1">Menu & Order Management</h3>
                 <p className="text-sm text-white/70">
-                  Update menu dan pantau pesanan secara real-time
+                  Update menus and track orders in real-time
                 </p>
               </div>
             </div>
@@ -342,9 +315,9 @@ function AdminLoginForm() {
                 <span className="text-sm">✓</span>
               </div>
               <div>
-                <h3 className="font-semibold mb-1">Laporan Penjualan</h3>
+                <h3 className="font-semibold mb-1">Sales Analytics</h3>
                 <p className="text-sm text-white/70">
-                  Analisis performa bisnis dengan dashboard lengkap
+                  Comprehensive business insights and reporting
                 </p>
               </div>
             </div>
@@ -355,7 +328,7 @@ function AdminLoginForm() {
               <div>
                 <h3 className="font-semibold mb-1">Multi-Merchant Support</h3>
                 <p className="text-sm text-white/70">
-                  Kelola multiple restoran dalam satu platform
+                  Manage multiple restaurants from one platform
                 </p>
               </div>
             </div>

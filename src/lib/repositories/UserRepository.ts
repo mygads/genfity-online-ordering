@@ -181,6 +181,19 @@ export class UserRepository {
       where: { id },
     });
   }
+
+  /**
+   * Find users with reset token (for password reset validation)
+   */
+  async findByResetToken() {
+    return prisma.user.findMany({
+      where: {
+        resetToken: {
+          not: null,
+        },
+      },
+    });
+  }
 }
 
 const userRepository = new UserRepository();
