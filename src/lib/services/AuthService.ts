@@ -134,7 +134,7 @@ class AuthService {
     let merchantIdString: string | undefined;
     if (user.merchantUsers && user.merchantUsers.length > 0) {
       merchantId = user.merchantUsers[0].merchantId;
-      merchantIdString = merchantId.toString();
+      merchantIdString = merchantId?.toString();
     }
 
     // Step 5: Generate JWT with session ID and merchantId in payload
