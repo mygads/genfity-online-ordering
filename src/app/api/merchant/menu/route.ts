@@ -111,9 +111,9 @@ async function handlePost(req: NextRequest, context: AuthContext) {
       description: body.description,
       price: body.price,
       imageUrl: body.imageUrl,
-      isAvailable: body.isAvailable !== undefined ? body.isAvailable : true,
-      hasStock: body.trackStock || false,
-      stockQuantity: body.stockQty,
+      isActive: body.isActive !== undefined ? body.isActive : true,
+      trackStock: body.trackStock || false,
+      stockQty: body.stockQty,
     });
 
     return NextResponse.json({

@@ -39,9 +39,9 @@ export interface MenuInput {
   description?: string;
   price: number;
   imageUrl?: string;
-  isAvailable?: boolean;
-  hasStock?: boolean;
-  stockQuantity?: number;
+  isActive?: boolean;
+  trackStock?: boolean;
+  stockQty?: number;
   isPromo?: boolean;
 }
 
@@ -63,9 +63,9 @@ export interface AddonItemInput {
   categoryId: bigint;
   name: string;
   price: number;
-  isAvailable?: boolean;
-  hasStock?: boolean;
-  stockQuantity?: number;
+  isActive?: boolean;
+  trackStock?: boolean;
+  stockQty?: number;
 }
 
 /**
@@ -209,9 +209,9 @@ class MenuService {
     }
 
     // Validate stock quantity
-    if (input.hasStock && (input.stockQuantity === undefined || input.stockQuantity < 0)) {
+    if (input.trackStock && (input.stockQty === undefined || input.stockQty < 0)) {
       throw new ValidationError(
-        'Stock quantity is required when hasStock is true',
+        'Stock quantity is required when trackStock is true',
         ERROR_CODES.VALIDATION_FAILED
       );
     }
@@ -223,9 +223,9 @@ class MenuService {
       description: input.description?.trim(),
       price: input.price,
       imageUrl: input.imageUrl,
-      isActive: input.isAvailable ?? true,
-      trackStock: input.hasStock ?? false,
-      stockQty: input.stockQuantity ?? undefined,
+      isActive: input.isActive ?? true,
+      trackStock: input.trackStock ?? false,
+      stockQty: input.stockQty ?? undefined,
       isPromo: input.isPromo ?? false,
     });
   }
@@ -274,9 +274,9 @@ class MenuService {
       description: input.description?.trim(),
       price: input.price,
       imageUrl: input.imageUrl,
-      isActive: input.isAvailable,
-      trackStock: input.hasStock,
-      stockQty: input.stockQuantity,
+      isActive: input.isActive,
+      trackStock: input.trackStock,
+      stockQty: input.stockQty,
       isPromo: input.isPromo,
     });
   }
@@ -543,9 +543,9 @@ class MenuService {
       addonCategoryId: input.categoryId,
       name: input.name.trim(),
       price: input.price,
-      isActive: input.isAvailable ?? true,
-      trackStock: input.hasStock ?? false,
-      stockQty: input.stockQuantity ?? undefined,
+      isActive: input.isActive ?? true,
+      trackStock: input.trackStock ?? false,
+      stockQty: input.stockQty ?? undefined,
     });
   }
 
@@ -576,9 +576,9 @@ class MenuService {
     return await menuRepository.updateAddonItem(itemId, {
       name: input.name?.trim(),
       price: input.price,
-      isActive: input.isAvailable,
-      trackStock: input.hasStock,
-      stockQty: input.stockQuantity,
+      isActive: input.isActive,
+      trackStock: input.trackStock,
+      stockQty: input.stockQty,
     });
   }
 

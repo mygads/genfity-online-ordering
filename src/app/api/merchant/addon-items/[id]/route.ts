@@ -79,9 +79,9 @@ async function handlePut(
     const item = await menuService.updateAddonItem(itemId, {
       name: body.name,
       price: body.price,
-      isAvailable: body.isAvailable,
-      hasStock: body.hasStock,
-      stockQuantity: body.stockQuantity,
+      isActive: body.isActive,
+      trackStock: body.trackStock,
+      stockQty: body.stockQty,
     });
 
     return NextResponse.json({

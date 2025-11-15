@@ -92,9 +92,9 @@ async function handlePost(
       categoryId: BigInt(body.addonCategoryId),
       name: body.name,
       price: body.price,
-      isAvailable: body.isAvailable,
-      hasStock: body.trackStock || false,
-      stockQuantity: body.stockQty,
+      isActive: body.isActive,
+      trackStock: body.trackStock || false,
+      stockQty: body.stockQty,
     });
 
     return NextResponse.json({
