@@ -2,8 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import ComponentCard from "@/components/common/ComponentCard";
-import PageBreadCrumb from "@/components/common/PageBreadCrumb";
+import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 
 interface Category {
   id: string;
@@ -56,7 +55,13 @@ export default function MerchantCategoriesPage() {
       }
 
       const data = await response.json();
-      setCategories(data.data || []);
+      
+      // Handle response format: { success: true, data: [...] }
+      if (data.success && Array.isArray(data.data)) {
+        setCategories(data.data);
+      } else {
+        setCategories([]);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
@@ -185,39 +190,42 @@ export default function MerchantCategoriesPage() {
 
   if (loading) {
     return (
-      <>
-        <PageBreadCrumb pageTitle="Menu Categories" />
+      <div>
+        <PageBreadcrumb pageTitle="Menu Categories" />
         <div className="mt-6 py-10 text-center">
-          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent"></div>
-          <p className="mt-2 text-sm text-body-color">Loading categories...</p>
+          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-brand-500 border-r-transparent"></div>
+          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Loading categories...</p>
         </div>
-      </>
+      </div>
     );
   }
 
   return (
-    <>
-      <PageBreadCrumb pageTitle="Menu Categories" />
+    <div>
+      <PageBreadcrumb pageTitle="Menu Categories" />
 
-      <div className="mt-6 space-y-6">
+      <div className="space-y-6">
         {error && (
-          <div className="rounded-lg bg-red-50 p-4 dark:bg-red-900/20">
-            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+          <div className="rounded-lg bg-error-50 p-4 dark:bg-error-900/20">
+            <p className="text-sm text-error-600 dark:text-error-400">{error}</p>
           </div>
         )}
 
         {success && (
-          <div className="rounded-lg bg-green-50 p-4 dark:bg-green-900/20">
-            <p className="text-sm text-green-600 dark:text-green-400">{success}</p>
+          <div className="rounded-lg bg-success-50 p-4 dark:bg-success-900/20">
+            <p className="text-sm text-success-600 dark:text-success-400">{success}</p>
           </div>
         )}
 
         {showForm && (
-          <ComponentCard title={editingId ? "Edit Category" : "Create New Category"}>
+          <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] lg:p-6">
+            <h3 className="mb-5 text-lg font-semibold text-gray-800 dark:text-white/90">
+              {editingId ? "Edit Category" : "Create New Category"}
+            </h3>
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
-                <label className="mb-2.5 block font-medium text-black dark:text-white">
-                  Category Name <span className="text-red-500">*</span>
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Category Name <span className="text-error-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -225,12 +233,12 @@ export default function MerchantCategoriesPage() {
                   value={formData.name}
                   onChange={handleChange}
                   required
-                  className="w-full rounded border border-stroke bg-gray px-4.5 py-3 text-black focus:border-primary focus-visible:outline-none dark:border-strokedark dark:bg-meta-4 dark:text-white"
+                  className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30"
                 />
               </div>
 
               <div>
-                <label className="mb-2.5 block font-medium text-black dark:text-white">
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Description
                 </label>
                 <textarea
@@ -238,13 +246,13 @@ export default function MerchantCategoriesPage() {
                   value={formData.description}
                   onChange={handleChange}
                   rows={3}
-                  className="w-full rounded border border-stroke bg-gray px-4.5 py-3 text-black focus:border-primary focus-visible:outline-none dark:border-strokedark dark:bg-meta-4 dark:text-white"
+                  className="w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30"
                 />
               </div>
 
               <div>
-                <label className="mb-2.5 block font-medium text-black dark:text-white">
-                  Display Order <span className="text-red-500">*</span>
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Display Order <span className="text-error-500">*</span>
                 </label>
                 <input
                   type="number"
@@ -253,36 +261,37 @@ export default function MerchantCategoriesPage() {
                   onChange={handleChange}
                   required
                   min="1"
-                  className="w-full rounded border border-stroke bg-gray px-4.5 py-3 text-black focus:border-primary focus-visible:outline-none dark:border-strokedark dark:bg-meta-4 dark:text-white"
+                  className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30"
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-4 border-t border-stroke pt-6 dark:border-strokedark">
+              <div className="flex items-center justify-end gap-4 border-t border-gray-200 pt-6 dark:border-gray-800">
                 <button
                   type="button"
                   onClick={handleCancel}
-                  className="rounded border border-stroke px-6 py-2.5 font-medium hover:bg-gray-2 dark:border-strokedark dark:hover:bg-meta-4"
+                  className="h-11 rounded-lg border border-gray-200 bg-white px-6 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-800 dark:bg-white/[0.03] dark:text-gray-300 dark:hover:bg-white/[0.05]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="rounded bg-primary px-6 py-2.5 font-medium text-white hover:bg-opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="h-11 rounded-lg bg-brand-500 px-6 text-sm font-medium text-white hover:bg-brand-600 focus:outline-none focus:ring-3 focus:ring-brand-500/20 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {submitting ? "Saving..." : editingId ? "Update Category" : "Create Category"}
                 </button>
               </div>
             </form>
-          </ComponentCard>
+          </div>
         )}
 
-        <ComponentCard title="Categories List">
-          <div className="mb-4 flex justify-end">
+        <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] lg:p-6">
+          <div className="mb-5 flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">Categories List</h3>
             {!showForm && (
               <button
                 onClick={() => setShowForm(true)}
-                className="rounded bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-opacity-90"
+                className="h-11 rounded-lg bg-brand-500 px-6 text-sm font-medium text-white hover:bg-brand-600 focus:outline-none focus:ring-3 focus:ring-brand-500/20"
               >
                 + Add Category
               </button>
@@ -291,11 +300,11 @@ export default function MerchantCategoriesPage() {
           
           {categories.length === 0 ? (
             <div className="py-10 text-center">
-              <p className="text-sm text-body-color">No categories found</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">No categories found</p>
               {!showForm && (
                 <button
                   onClick={() => setShowForm(true)}
-                  className="mt-4 rounded bg-primary px-6 py-2.5 font-medium text-white hover:bg-opacity-90"
+                  className="mt-4 h-11 rounded-lg bg-brand-500 px-6 text-sm font-medium text-white hover:bg-brand-600 focus:outline-none focus:ring-3 focus:ring-brand-500/20"
                 >
                   Create First Category
                 </button>
@@ -305,25 +314,25 @@ export default function MerchantCategoriesPage() {
             <div className="overflow-x-auto">
               <table className="w-full table-auto">
                 <thead>
-                  <tr className="bg-gray-2 text-left dark:bg-meta-4">
-                    <th className="px-4 py-4 font-medium text-black dark:text-white">Order</th>
-                    <th className="px-4 py-4 font-medium text-black dark:text-white">Name</th>
-                    <th className="px-4 py-4 font-medium text-black dark:text-white">Description</th>
-                    <th className="px-4 py-4 font-medium text-black dark:text-white">Status</th>
-                    <th className="px-4 py-4 font-medium text-black dark:text-white">Actions</th>
+                  <tr className="bg-gray-50 text-left dark:bg-gray-900/50">
+                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">Order</th>
+                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">Name</th>
+                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">Description</th>
+                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">Status</th>
+                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">Actions</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                   {categories.map((category) => (
-                    <tr key={category.id} className="border-b border-stroke dark:border-strokedark">
-                      <td className="px-4 py-4">{category.displayOrder}</td>
-                      <td className="px-4 py-4">{category.name}</td>
-                      <td className="px-4 py-4">{category.description || '-'}</td>
+                    <tr key={category.id}>
+                      <td className="px-4 py-4 text-sm text-gray-800 dark:text-white/90">{category.displayOrder}</td>
+                      <td className="px-4 py-4 text-sm font-medium text-gray-800 dark:text-white/90">{category.name}</td>
+                      <td className="px-4 py-4 text-sm text-gray-600 dark:text-gray-400">{category.description || '-'}</td>
                       <td className="px-4 py-4">
-                        <span className={`inline-flex rounded-full px-3 py-1 text-sm font-medium ${
+                        <span className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${
                           category.isActive 
-                            ? 'bg-success/10 text-success' 
-                            : 'bg-meta-1/10 text-meta-1'
+                            ? 'bg-success-100 text-success-700 dark:bg-success-900/20 dark:text-success-400' 
+                            : 'bg-error-100 text-error-700 dark:bg-error-900/20 dark:text-error-400'
                         }`}>
                           {category.isActive ? 'Active' : 'Inactive'}
                         </span>
@@ -332,13 +341,13 @@ export default function MerchantCategoriesPage() {
                         <div className="flex items-center gap-3">
                           <button
                             onClick={() => handleEdit(category)}
-                            className="text-primary hover:text-primary/80"
+                            className="text-sm text-brand-500 hover:text-brand-600 hover:underline dark:text-brand-400"
                           >
                             Edit
                           </button>
                           <button
                             onClick={() => handleDelete(category.id)}
-                            className="text-meta-1 hover:text-meta-1/80"
+                            className="text-sm text-error-600 hover:text-error-700 hover:underline dark:text-error-400"
                           >
                             Delete
                           </button>
@@ -350,8 +359,8 @@ export default function MerchantCategoriesPage() {
               </table>
             </div>
           )}
-        </ComponentCard>
+        </div>
       </div>
-    </>
+    </div>
   );
 }

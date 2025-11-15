@@ -84,6 +84,7 @@ function AdminLoginForm() {
         body: JSON.stringify({
           email: formData.email.trim().toLowerCase(),
           password: formData.password,
+          rememberMe, // Include remember me flag for session duration
         }),
       });
 
@@ -246,9 +247,14 @@ function AdminLoginForm() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <Checkbox checked={rememberMe} onChange={setRememberMe} />
-                    <span className="block font-normal text-gray-700 text-theme-sm dark:text-gray-400">
-                      Remember me
-                    </span>
+                    <div>
+                      <span className="block font-normal text-gray-700 text-theme-sm dark:text-gray-400">
+                        Remember me
+                      </span>
+                      <span className="block text-xs text-gray-500 dark:text-gray-500">
+                        {rememberMe ? 'Session: 7 hari' : 'Session: 1 hari'}
+                      </span>
+                    </div>
                   </div>
                   <Link
                     href="/admin/forgot-password"

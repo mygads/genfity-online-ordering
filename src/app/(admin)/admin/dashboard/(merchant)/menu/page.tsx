@@ -2,8 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import ComponentCard from "@/components/common/ComponentCard";
-import PageBreadCrumb from "@/components/common/PageBreadCrumb";
+import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 
 interface MenuItem {
   id: string;
@@ -71,9 +70,20 @@ export default function MerchantMenuPage() {
       const menuData = await menuResponse.json();
       const categoriesData = await categoriesResponse.json();
 
-      setMenuItems(menuData.data || []);
-      setCategories(categoriesData.data || []);
+      // Handle response format: { success: true, data: [...] }
+      if (menuData.success && Array.isArray(menuData.data)) {
+        setMenuItems(menuData.data);
+      } else {
+        setMenuItems([]);
+      }
+      
+      if (categoriesData.success && Array.isArray(categoriesData.data)) {
+        setCategories(categoriesData.data);
+      } else {
+        setCategories([]);
+      }
     } catch (err) {
+      console.error("Fetch menu data error:", err);
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
       setLoading(false);
@@ -202,46 +212,49 @@ export default function MerchantMenuPage() {
 
   if (loading) {
     return (
-      <>
-        <PageBreadCrumb pageTitle="Menu Items" />
+      <div>
+        <PageBreadcrumb pageTitle="Menu Items" />
         <div className="mt-6 py-10 text-center">
-          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent"></div>
-          <p className="mt-2 text-sm text-body-color">Loading menu...</p>
+          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-brand-500 border-r-transparent"></div>
+          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Loading menu...</p>
         </div>
-      </>
+      </div>
     );
   }
 
   return (
-    <>
-      <PageBreadCrumb pageTitle="Menu Items" />
+    <div>
+      <PageBreadcrumb pageTitle="Menu Items" />
 
-      <div className="mt-6 space-y-6">
+      <div className="space-y-6">
         {error && (
-          <div className="rounded-lg bg-red-50 p-4 dark:bg-red-900/20">
-            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+          <div className="rounded-lg bg-error-50 p-4 dark:bg-error-900/20">
+            <p className="text-sm text-error-600 dark:text-error-400">{error}</p>
           </div>
         )}
 
         {success && (
-          <div className="rounded-lg bg-green-50 p-4 dark:bg-green-900/20">
-            <p className="text-sm text-green-600 dark:text-green-400">{success}</p>
+          <div className="rounded-lg bg-success-50 p-4 dark:bg-success-900/20">
+            <p className="text-sm text-success-600 dark:text-success-400">{success}</p>
           </div>
         )}
 
         {showForm && (
-          <ComponentCard title={editingId ? "Edit Menu Item" : "Create New Menu Item"}>
+          <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] lg:p-6">
+            <h3 className="mb-5 text-lg font-semibold text-gray-800 dark:text-white/90">
+              {editingId ? "Edit Menu Item" : "Create New Menu Item"}
+            </h3>
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
-                <label className="mb-2.5 block font-medium text-black dark:text-white">
-                  Category <span className="text-red-500">*</span>
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Category <span className="text-error-500">*</span>
                 </label>
                 <select
                   name="categoryId"
                   value={formData.categoryId}
                   onChange={handleChange}
                   required
-                  className="w-full rounded border border-stroke bg-gray px-4.5 py-3 text-black focus:border-primary focus-visible:outline-none dark:border-strokedark dark:bg-meta-4 dark:text-white"
+                  className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 text-sm text-gray-800 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90"
                 >
                   <option value="">Select a category</option>
                   {categories.map((cat) => (
@@ -251,8 +264,8 @@ export default function MerchantMenuPage() {
               </div>
 
               <div>
-                <label className="mb-2.5 block font-medium text-black dark:text-white">
-                  Item Name <span className="text-red-500">*</span>
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Item Name <span className="text-error-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -260,12 +273,12 @@ export default function MerchantMenuPage() {
                   value={formData.name}
                   onChange={handleChange}
                   required
-                  className="w-full rounded border border-stroke bg-gray px-4.5 py-3 text-black focus:border-primary focus-visible:outline-none dark:border-strokedark dark:bg-meta-4 dark:text-white"
+                  className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30"
                 />
               </div>
 
               <div>
-                <label className="mb-2.5 block font-medium text-black dark:text-white">
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Description
                 </label>
                 <textarea
@@ -273,13 +286,13 @@ export default function MerchantMenuPage() {
                   value={formData.description}
                   onChange={handleChange}
                   rows={3}
-                  className="w-full rounded border border-stroke bg-gray px-4.5 py-3 text-black focus:border-primary focus-visible:outline-none dark:border-strokedark dark:bg-meta-4 dark:text-white"
+                  className="w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30"
                 />
               </div>
 
               <div>
-                <label className="mb-2.5 block font-medium text-black dark:text-white">
-                  Price <span className="text-red-500">*</span>
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Price <span className="text-error-500">*</span>
                 </label>
                 <input
                   type="number"
@@ -289,36 +302,37 @@ export default function MerchantMenuPage() {
                   required
                   min="0"
                   step="0.01"
-                  className="w-full rounded border border-stroke bg-gray px-4.5 py-3 text-black focus:border-primary focus-visible:outline-none dark:border-strokedark dark:bg-meta-4 dark:text-white"
+                  className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30"
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-4 border-t border-stroke pt-6 dark:border-strokedark">
+              <div className="flex items-center justify-end gap-4 border-t border-gray-200 pt-6 dark:border-gray-800">
                 <button
                   type="button"
                   onClick={handleCancel}
-                  className="rounded border border-stroke px-6 py-2.5 font-medium hover:bg-gray-2 dark:border-strokedark dark:hover:bg-meta-4"
+                  className="h-11 rounded-lg border border-gray-200 bg-white px-6 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-800 dark:bg-white/[0.03] dark:text-gray-300 dark:hover:bg-white/[0.05]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="rounded bg-primary px-6 py-2.5 font-medium text-white hover:bg-opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="h-11 rounded-lg bg-brand-500 px-6 text-sm font-medium text-white hover:bg-brand-600 focus:outline-none focus:ring-3 focus:ring-brand-500/20 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {submitting ? "Saving..." : editingId ? "Update Item" : "Create Item"}
                 </button>
               </div>
             </form>
-          </ComponentCard>
+          </div>
         )}
 
-        <ComponentCard title="Menu Items List">
-          <div className="mb-4 flex justify-end">
+        <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] lg:p-6">
+          <div className="mb-5 flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">Menu Items List</h3>
             {!showForm && (
               <button
                 onClick={() => setShowForm(true)}
-                className="rounded bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-opacity-90"
+                className="h-11 rounded-lg bg-brand-500 px-6 text-sm font-medium text-white hover:bg-brand-600 focus:outline-none focus:ring-3 focus:ring-brand-500/20"
               >
                 + Add Menu Item
               </button>
@@ -327,11 +341,11 @@ export default function MerchantMenuPage() {
           
           {menuItems.length === 0 ? (
             <div className="py-10 text-center">
-              <p className="text-sm text-body-color">No menu items found</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">No menu items found</p>
               {!showForm && (
                 <button
                   onClick={() => setShowForm(true)}
-                  className="mt-4 rounded bg-primary px-6 py-2.5 font-medium text-white hover:bg-opacity-90"
+                  className="mt-4 h-11 rounded-lg bg-brand-500 px-6 text-sm font-medium text-white hover:bg-brand-600 focus:outline-none focus:ring-3 focus:ring-brand-500/20"
                 >
                   Create First Menu Item
                 </button>
@@ -341,32 +355,32 @@ export default function MerchantMenuPage() {
             <div className="overflow-x-auto">
               <table className="w-full table-auto">
                 <thead>
-                  <tr className="bg-gray-2 text-left dark:bg-meta-4">
-                    <th className="px-4 py-4 font-medium text-black dark:text-white">Name</th>
-                    <th className="px-4 py-4 font-medium text-black dark:text-white">Category</th>
-                    <th className="px-4 py-4 font-medium text-black dark:text-white">Price</th>
-                    <th className="px-4 py-4 font-medium text-black dark:text-white">Status</th>
-                    <th className="px-4 py-4 font-medium text-black dark:text-white">Actions</th>
+                  <tr className="bg-gray-50 text-left dark:bg-gray-900/50">
+                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">Name</th>
+                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">Category</th>
+                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">Price</th>
+                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">Status</th>
+                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">Actions</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                   {menuItems.map((item) => (
-                    <tr key={item.id} className="border-b border-stroke dark:border-strokedark">
+                    <tr key={item.id}>
                       <td className="px-4 py-4">
                         <div>
-                          <p className="font-medium">{item.name}</p>
+                          <p className="text-sm font-medium text-gray-800 dark:text-white/90">{item.name}</p>
                           {item.description && (
-                            <p className="text-sm text-body-color">{item.description}</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">{item.description}</p>
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-4">{item.categoryName}</td>
-                      <td className="px-4 py-4">Rp {parseFloat(item.price).toLocaleString('id-ID')}</td>
+                      <td className="px-4 py-4 text-sm text-gray-800 dark:text-white/90">{item.categoryName}</td>
+                      <td className="px-4 py-4 text-sm text-gray-800 dark:text-white/90">Rp {parseFloat(item.price).toLocaleString('id-ID')}</td>
                       <td className="px-4 py-4">
-                        <span className={`inline-flex rounded-full px-3 py-1 text-sm font-medium ${
+                        <span className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${
                           item.isAvailable 
-                            ? 'bg-success/10 text-success' 
-                            : 'bg-meta-1/10 text-meta-1'
+                            ? 'bg-success-100 text-success-700 dark:bg-success-900/20 dark:text-success-400' 
+                            : 'bg-error-100 text-error-700 dark:bg-error-900/20 dark:text-error-400'
                         }`}>
                           {item.isAvailable ? 'Available' : 'Unavailable'}
                         </span>
@@ -375,13 +389,13 @@ export default function MerchantMenuPage() {
                         <div className="flex items-center gap-3">
                           <button
                             onClick={() => handleEdit(item)}
-                            className="text-primary hover:text-primary/80"
+                            className="text-sm text-brand-500 hover:text-brand-600 hover:underline dark:text-brand-400"
                           >
                             Edit
                           </button>
                           <button
                             onClick={() => handleDelete(item.id)}
-                            className="text-meta-1 hover:text-meta-1/80"
+                            className="text-sm text-error-600 hover:text-error-700 hover:underline dark:text-error-400"
                           >
                             Delete
                           </button>
@@ -393,8 +407,8 @@ export default function MerchantMenuPage() {
               </table>
             </div>
           )}
-        </ComponentCard>
+        </div>
       </div>
-    </>
+    </div>
   );
 }

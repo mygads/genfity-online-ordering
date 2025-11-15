@@ -8,6 +8,7 @@ export type SessionStatus = 'ACTIVE' | 'REVOKED' | 'EXPIRED';
 export interface LoginRequest {
   email: string;
   password: string;
+  rememberMe?: boolean; // For admin, owner, staff - extends session to 1 week
 }
 
 export interface LoginResponse {

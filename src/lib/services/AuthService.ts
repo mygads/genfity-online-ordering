@@ -13,6 +13,36 @@ import type { LoginRequest, LoginResponse } from '@/lib/types/auth';
 
 class AuthService {
   /**
+   * Get session duration based on role and rememberMe
+   * 
+   * Duration rules:
+   * - CUSTOMER: 3 months (7776000 seconds / 90 days)
+   * - ADMIN/OWNER/STAFF with rememberMe: 1 week (604800 seconds)
+   * - ADMIN/OWNER/STAFF without rememberMe: 1 day (86400 seconds)
+   */
+  private getSessionDuration(role: string, rememberMe?: boolean): number {
+    // Customer: 3 months
+    if (role === 'CUSTOMER') {
+      return 90 * 24 * 60 * 60; // 7776000 seconds = 90 days
+    }
+
+    // Admin, Merchant Owner, Merchant Staff
+    if (rememberMe) {
+      return 7 * 24 * 60 * 60; // 604800 seconds = 7 days (1 week)
+    }
+
+    return 24 * 60 * 60; // 86400 seconds = 1 day
+  }
+
+  /**
+   * Get refresh token duration based on role and rememberMe
+   * Refresh duration is 2x session duration for token refresh capability
+   */
+  private getRefreshDuration(role: string, rememberMe?: boolean): number {
+    return this.getSessionDuration(role, rememberMe) * 2;
+  }
+
+  /**
    * Login user - STEP_02 Flow
    * 1. Validate input
    * 2. Find user by email
@@ -69,13 +99,16 @@ class AuthService {
       );
     }
 
-    // Step 4: Create session in database
+    // Step 4: Calculate session duration based on role and rememberMe
+    const sessionDuration = this.getSessionDuration(user.role, credentials.rememberMe);
+    const refreshDuration = this.getRefreshDuration(user.role, credentials.rememberMe);
+
     const expiresAt = new Date();
-    expiresAt.setSeconds(expiresAt.getSeconds() + parseInt(process.env.JWT_EXPIRY || '3600'));
+    expiresAt.setSeconds(expiresAt.getSeconds() + sessionDuration);
 
     const refreshExpiresAt = new Date();
     refreshExpiresAt.setSeconds(
-      refreshExpiresAt.getSeconds() + parseInt(process.env.JWT_REFRESH_EXPIRY || '604800')
+      refreshExpiresAt.getSeconds() + refreshDuration
     );
 
     // Generate temporary token for session creation
@@ -123,8 +156,8 @@ class AuthService {
       token: accessToken,
     });
 
-    // Calculate expiresIn (in seconds)
-    const expiresIn = parseInt(process.env.JWT_EXPIRY || '3600');
+    // Calculate expiresIn using dynamic session duration
+    const expiresIn = this.getSessionDuration(user.role, credentials.rememberMe);
 
     return {
       user: {
@@ -172,6 +205,7 @@ class AuthService {
     sessionId: bigint;
     role: string;
     email: string;
+    merchantId?: bigint;
   } | null> {
     // Verify JWT signature and expiry
     const payload = verifyAccessToken(token);
@@ -192,6 +226,7 @@ class AuthService {
       sessionId: payload.sessionId,
       role: payload.role,
       email: payload.email,
+      merchantId: payload.merchantId,
     };
   }
 
@@ -238,12 +273,19 @@ class AuthService {
       );
     }
 
+    // Get merchant info if user is merchant owner/staff
+    let merchantId: bigint | undefined;
+    if (session.user.merchantUsers && session.user.merchantUsers.length > 0) {
+      merchantId = session.user.merchantUsers[0].merchantId;
+    }
+
     // Generate new tokens
     const newAccessToken = generateAccessToken({
       userId: session.userId,
       sessionId: session.id,
       role: session.user.role,
       email: session.user.email,
+      merchantId,
     });
 
     const newRefreshToken = generateRefreshToken({

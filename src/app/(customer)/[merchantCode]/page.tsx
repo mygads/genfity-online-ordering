@@ -86,6 +86,13 @@ export default function MerchantModePage({ params }: MerchantPageProps) {
       const response = await fetch(`/api/public/merchants/${code}`);
 
       if (!response.ok) {
+        const errorData = await response.json();
+        
+        // Check if merchant is disabled
+        if (errorData.error === 'MERCHANT_DISABLED') {
+          throw new Error('Merchant ini sedang tidak aktif');
+        }
+        
         throw new Error('Merchant tidak ditemukan');
       }
 

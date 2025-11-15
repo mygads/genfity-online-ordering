@@ -65,8 +65,18 @@ export function saveAdminAuth(auth: AdminAuth): void {
   if (typeof window === 'undefined') return;
 
   try {
-    // Save to localStorage
+    // Save to localStorage (structured data)
     localStorage.setItem(ADMIN_AUTH_KEY, JSON.stringify(auth));
+    
+    // Save individual items for useAuth hook compatibility
+    localStorage.setItem('accessToken', auth.accessToken);
+    localStorage.setItem('userId', auth.user.id);
+    localStorage.setItem('userRole', auth.user.role);
+    localStorage.setItem('userName', auth.user.name);
+    localStorage.setItem('userEmail', auth.user.email);
+    if (auth.user.merchantId) {
+      localStorage.setItem('merchantId', auth.user.merchantId);
+    }
     
     // Save token to cookie for middleware (httpOnly would be better but can't set from client)
     const expiresIn = Math.floor((new Date(auth.expiresAt).getTime() - Date.now()) / 1000);
@@ -85,6 +95,12 @@ export function clearAdminAuth(): void {
   try {
     // Clear localStorage
     localStorage.removeItem(ADMIN_AUTH_KEY);
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('userId');
+    localStorage.removeItem('userRole');
+    localStorage.removeItem('userName');
+    localStorage.removeItem('userEmail');
+    localStorage.removeItem('merchantId');
     
     // Clear cookie
     document.cookie = 'auth_token=; path=/; max-age=0';

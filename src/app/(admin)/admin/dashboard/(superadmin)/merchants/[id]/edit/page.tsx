@@ -2,31 +2,35 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
-import ComponentCard from "@/components/common/ComponentCard";
-import PageBreadCrumb from "@/components/common/PageBreadCrumb";
+import PageBreadcrumb from "@/components/common/PageBreadCrumb";
+import { useToast } from "@/hooks/useToast";
+import ToastContainer from "@/components/ui/ToastContainer";
 
 interface MerchantFormData {
   name: string;
+  code: string;
   description: string;
+  address: string;
+  email: string;
   phoneNumber: string;
-  taxRate: number;
 }
 
 export default function EditMerchantPage() {
   const router = useRouter();
   const params = useParams();
   const merchantId = params?.id as string;
+  const { toasts, success: showSuccess, error: showError } = useToast();
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
   
   const [formData, setFormData] = useState<MerchantFormData>({
     name: "",
+    code: "",
     description: "",
+    address: "",
+    email: "",
     phoneNumber: "",
-    taxRate: 10,
   });
 
   useEffect(() => {
@@ -50,16 +54,21 @@ export default function EditMerchantPage() {
         }
 
         const data = await response.json();
-        const merchant = data.data;
+        // API returns { success: true, data: { merchant: {...} } }
+        const merchant = data.data?.merchant || data.data;
+        
+        console.log('Loaded merchant data:', merchant); // Debug log
         
         setFormData({
-          name: merchant.name,
+          name: merchant.name || "",
+          code: merchant.code || "",
           description: merchant.description || "",
-          phoneNumber: merchant.phone,
-          taxRate: parseFloat(merchant.taxPercentage),
+          address: merchant.address || "",
+          email: merchant.email || "",
+          phoneNumber: merchant.phone || "",
         });
       } catch (err) {
-        setError(err instanceof Error ? err.message : "An error occurred");
+        showError("Error", err instanceof Error ? err.message : "Failed to load merchant data");
       } finally {
         setLoading(false);
       }
@@ -68,29 +77,19 @@ export default function EditMerchantPage() {
     if (merchantId) {
       fetchMerchant();
     }
-  }, [merchantId, router]);
+  }, [merchantId, router, showError]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value, type } = e.target;
-    
-    if (type === "number") {
-      setFormData(prev => ({
-        ...prev,
-        [name]: parseFloat(value) || 0
-      }));
-    } else {
-      setFormData(prev => ({
-        ...prev,
-        [name]: value
-      }));
-    }
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-    setError(null);
-    setSuccess(null);
 
     try {
       const token = localStorage.getItem("accessToken");
@@ -114,13 +113,13 @@ export default function EditMerchantPage() {
         throw new Error(data.message || "Failed to update merchant");
       }
 
-      setSuccess("Merchant updated successfully!");
+      showSuccess("Success", "Merchant updated successfully!");
       
       setTimeout(() => {
-        router.push(`/admin/merchants/${merchantId}`);
-      }, 2000);
+        router.push(`/admin/dashboard/merchants/${merchantId}`);
+      }, 1500);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
+      showError("Error", err instanceof Error ? err.message : "Failed to update merchant");
     } finally {
       setSubmitting(false);
     }
@@ -128,39 +127,51 @@ export default function EditMerchantPage() {
 
   if (loading) {
     return (
-      <>
-        <PageBreadCrumb pageTitle="Edit Merchant" />
+      <div>
+        <PageBreadcrumb pageTitle="Edit Merchant" />
         <div className="mt-6 py-10 text-center">
-          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent"></div>
-          <p className="mt-2 text-sm text-body-color">Loading merchant...</p>
+          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-brand-500 border-r-transparent"></div>
+          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Loading merchant...</p>
         </div>
-      </>
+      </div>
     );
   }
 
   return (
-    <>
-      <PageBreadCrumb pageTitle="Edit Merchant" />
+    <div>
+      <ToastContainer toasts={toasts} />
+      <PageBreadcrumb pageTitle="Edit Merchant" />
 
-      <div className="mt-6">
-        <ComponentCard title="Update Merchant Information">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {error && (
-              <div className="rounded-lg bg-red-50 p-4 dark:bg-red-900/20">
-                <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-              </div>
-            )}
+      <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] lg:p-6">
+        <div className="mb-5">
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">
+            Update Merchant Information
+          </h3>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            Edit merchant details and settings
+          </p>
+        </div>
 
-            {success && (
-              <div className="rounded-lg bg-green-50 p-4 dark:bg-green-900/20">
-                <p className="text-sm text-green-600 dark:text-green-400">{success}</p>
-                <p className="mt-2 text-xs text-green-500">Redirecting...</p>
-              </div>
-            )}
+        <form onSubmit={handleSubmit} className="space-y-6">
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Merchant Code <span className="text-error-500">*</span>
+              </label>
+              <input
+                type="text"
+                name="code"
+                value={formData.code}
+                onChange={handleChange}
+                required
+                disabled
+                className="h-11 w-full rounded-lg border border-gray-200 bg-gray-50 px-4 text-sm text-gray-500 cursor-not-allowed dark:border-gray-800 dark:bg-gray-800 dark:text-gray-400"
+              />
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Merchant code cannot be changed</p>
+            </div>
 
             <div>
-              <label className="mb-2.5 block font-medium text-black dark:text-white">
-                Merchant Name <span className="text-red-500">*</span>
+              <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Merchant Name <span className="text-error-500">*</span>
               </label>
               <input
                 type="text"
@@ -168,26 +179,27 @@ export default function EditMerchantPage() {
                 value={formData.name}
                 onChange={handleChange}
                 required
-                className="w-full rounded border border-stroke bg-gray px-4.5 py-3 text-black focus:border-primary focus-visible:outline-none dark:border-strokedark dark:bg-meta-4 dark:text-white"
+                className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30"
               />
             </div>
 
             <div>
-              <label className="mb-2.5 block font-medium text-black dark:text-white">
-                Description
+              <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Email <span className="text-error-500">*</span>
               </label>
-              <textarea
-                name="description"
-                value={formData.description}
+              <input
+                type="email"
+                name="email"
+                value={formData.email}
                 onChange={handleChange}
-                rows={3}
-                className="w-full rounded border border-stroke bg-gray px-4.5 py-3 text-black focus:border-primary focus-visible:outline-none dark:border-strokedark dark:bg-meta-4 dark:text-white"
+                required
+                className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30"
               />
             </div>
 
             <div>
-              <label className="mb-2.5 block font-medium text-black dark:text-white">
-                Phone Number <span className="text-red-500">*</span>
+              <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Phone Number <span className="text-error-500">*</span>
               </label>
               <input
                 type="tel"
@@ -195,46 +207,55 @@ export default function EditMerchantPage() {
                 value={formData.phoneNumber}
                 onChange={handleChange}
                 required
-                className="w-full rounded border border-stroke bg-gray px-4.5 py-3 text-black focus:border-primary focus-visible:outline-none dark:border-strokedark dark:bg-meta-4 dark:text-white"
+                className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30"
               />
             </div>
 
             <div>
-              <label className="mb-2.5 block font-medium text-black dark:text-white">
-                Tax Rate (%) <span className="text-red-500">*</span>
+              <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Address <span className="text-error-500">*</span>
               </label>
-              <input
-                type="number"
-                name="taxRate"
-                value={formData.taxRate}
+              <textarea
+                name="address"
+                value={formData.address}
                 onChange={handleChange}
                 required
-                min="0"
-                max="100"
-                step="0.01"
-                className="w-full rounded border border-stroke bg-gray px-4.5 py-3 text-black focus:border-primary focus-visible:outline-none dark:border-strokedark dark:bg-meta-4 dark:text-white"
+                rows={3}
+                className="w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30"
               />
             </div>
 
-            <div className="flex items-center justify-end gap-4 border-t border-stroke pt-6 dark:border-strokedark">
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Description
+              </label>
+              <textarea
+                name="description"
+                value={formData.description}
+                onChange={handleChange}
+                rows={3}
+                className="w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-4 border-t border-gray-200 pt-6 dark:border-gray-800">
               <button
                 type="button"
                 onClick={() => router.back()}
-                className="rounded border border-stroke px-6 py-2.5 font-medium hover:bg-gray-2 dark:border-strokedark dark:hover:bg-meta-4"
+                className="h-11 rounded-lg border border-gray-200 bg-white px-6 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-800 dark:bg-white/[0.03] dark:text-gray-300 dark:hover:bg-white/[0.05]"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={submitting}
-                className="rounded bg-primary px-6 py-2.5 font-medium text-white hover:bg-opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                className="h-11 rounded-lg bg-brand-500 px-6 text-sm font-medium text-white hover:bg-brand-600 focus:outline-none focus:ring-3 focus:ring-brand-500/20 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {submitting ? "Updating..." : "Update Merchant"}
               </button>
             </div>
-          </form>
-        </ComponentCard>
+        </form>
       </div>
-    </>
+    </div>
   );
 }

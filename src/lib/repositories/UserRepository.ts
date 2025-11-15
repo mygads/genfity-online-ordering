@@ -105,6 +105,31 @@ export class UserRepository {
         role: role as UserRole,
         isActive: true,
       },
+      include: {
+        merchantUsers: {
+          include: {
+            merchant: true,
+          },
+        },
+      },
+    });
+  }
+
+  /**
+   * Get all users
+   */
+  async findAll() {
+    return prisma.user.findMany({
+      include: {
+        merchantUsers: {
+          include: {
+            merchant: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
     });
   }
 
