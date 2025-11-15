@@ -5,7 +5,7 @@
  */
 
 import { NextRequest } from 'next/server';
-import { db } from '@/lib/db';
+import prisma from '@/lib/db/client';
 import { successResponse } from '@/lib/middleware/errorHandler';
 import { withSuperAdmin } from '@/lib/middleware/auth';
 import { AuthContext } from '@/lib/types/auth';
@@ -36,29 +36,25 @@ async function assignOwnerHandler(
 
   const userIdBigInt = BigInt(userId);
 
-  // Verify merchant exists
-  const merchantResult = await db.query(
-    'SELECT id, name FROM merchants WHERE id = $1 AND deleted_at IS NULL',
-    [merchantId.toString()]
-  );
+  // Verify merchant exists using Prisma
+  const merchant = await prisma.merchant.findUnique({
+    where: { id: merchantId },
+    select: { id: true, name: true },
+  });
 
-  if (merchantResult.rows.length === 0) {
+  if (!merchant) {
     throw new NotFoundError('Merchant not found', ERROR_CODES.MERCHANT_NOT_FOUND);
   }
 
-  // Verify user exists and is not already assigned to a merchant
-  const userResult = await db.query(
-    `SELECT u.id, u.name, u.email, u.role 
-     FROM users u 
-     WHERE u.id = $1 AND u.deleted_at IS NULL`,
-    [userIdBigInt.toString()]
-  );
+  // Verify user exists using Prisma
+  const user = await prisma.user.findUnique({
+    where: { id: userIdBigInt },
+    select: { id: true, name: true, email: true, role: true },
+  });
 
-  if (userResult.rows.length === 0) {
+  if (!user) {
     throw new NotFoundError('User not found', ERROR_CODES.USER_NOT_FOUND);
   }
-
-  const user = userResult.rows[0];
 
   // Check if user is already a merchant owner or staff
   if (user.role === 'MERCHANT_OWNER' || user.role === 'MERCHANT_STAFF') {
@@ -66,50 +62,46 @@ async function assignOwnerHandler(
   }
 
   // Check if user already has merchant link
-  const existingLink = await db.query(
-    'SELECT id FROM merchant_users WHERE user_id = $1',
-    [userIdBigInt.toString()]
-  );
+  const existingLink = await prisma.merchantUser.findFirst({
+    where: { userId: userIdBigInt },
+  });
 
-  if (existingLink.rows.length > 0) {
+  if (existingLink) {
     throw new ValidationError('User is already linked to a merchant');
   }
 
-  // Begin transaction
-  const client = await db.connect();
-  try {
-    await client.query('BEGIN');
-
+  // Use Prisma transaction for atomicity
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const result = await prisma.$transaction(async (tx: any) => {
     // Update user role to MERCHANT_OWNER
-    await client.query(
-      'UPDATE users SET role = $1 WHERE id = $2',
-      ['MERCHANT_OWNER', userIdBigInt.toString()]
-    );
+    const updatedUser = await tx.user.update({
+      where: { id: userIdBigInt },
+      data: { role: 'MERCHANT_OWNER' },
+      select: { id: true, name: true, email: true, role: true },
+    });
 
     // Create merchant-user link
-    await client.query(
-      'INSERT INTO merchant_users (merchant_id, user_id) VALUES ($1, $2)',
-      [merchantId.toString(), userIdBigInt.toString()]
-    );
-
-    await client.query('COMMIT');
-
-    return successResponse(
-      {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: 'MERCHANT_OWNER',
+    await tx.merchantUser.create({
+      data: {
+        merchantId,
+        userId: userIdBigInt,
+        role: 'OWNER',
       },
-      'Owner assigned successfully',
-      200
-    );
-  } catch (error) {
-    await client.query('ROLLBACK');
-    throw error;
-  } finally {
-    client.release();
-  }
+    });
+
+    return updatedUser;
+  });
+
+  return successResponse(
+    {
+      id: result.id.toString(),
+      name: result.name,
+      email: result.email,
+      role: result.role,
+    },
+    'Owner assigned successfully',
+    200
+  );
 }
 
 export const PUT = withSuperAdmin(assignOwnerHandler);

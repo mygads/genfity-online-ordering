@@ -4,7 +4,7 @@
  */
 
 import prisma from '@/lib/db/client';
-import { Prisma, UserRole } from '@prisma/client';
+import type { Prisma, UserRole } from '@prisma/client';
 
 export class UserRepository {
   /**
@@ -111,6 +111,34 @@ export class UserRepository {
             merchant: true,
           },
         },
+      },
+    });
+  }
+
+  /**
+   * Get all users linked to a specific merchant
+   */
+  async findByMerchant(merchantId: bigint) {
+    return prisma.user.findMany({
+      where: {
+        merchantUsers: {
+          some: {
+            merchantId,
+          },
+        },
+      },
+      include: {
+        merchantUsers: {
+          where: {
+            merchantId,
+          },
+          include: {
+            merchant: true,
+          },
+        },
+      },
+      orderBy: {
+        role: 'asc',
       },
     });
   }

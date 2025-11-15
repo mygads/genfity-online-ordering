@@ -18,6 +18,7 @@ export interface LoginResponse {
     email: string;
     role: UserRole;
     merchantId?: string;
+    profilePictureUrl?: string;
   };
   accessToken: string;
   refreshToken?: string;

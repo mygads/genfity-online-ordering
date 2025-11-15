@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
+import Image from "next/image";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import ComponentCard from "@/components/common/ComponentCard";
 
@@ -52,7 +53,7 @@ export default function MerchantDetailsPage() {
 
         const token = localStorage.getItem("accessToken");
         if (!token) {
-          router.push("/auth/signin");
+          router.push("/admin/login");
           return;
         }
 
@@ -64,7 +65,7 @@ export default function MerchantDetailsPage() {
 
         if (!response.ok) {
           if (response.status === 401) {
-            router.push("/auth/signin");
+            router.push("/admin/login");
             return;
           }
           throw new Error("Failed to fetch merchant");
@@ -158,35 +159,59 @@ export default function MerchantDetailsPage() {
       <PageBreadcrumb pageTitle={merchant.name} />
 
       <ComponentCard title="Merchant Details" className="space-y-6">
-        {/* Basic Information */}
+        {/* Merchant Logo & Header */}
         <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] lg:p-6">
-          <h3 className="mb-5 text-lg font-semibold text-gray-800 dark:text-white/90">Basic Information</h3>
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-500 dark:text-gray-400">
-                Merchant Code
-              </label>
-              <p className="font-mono text-lg font-semibold text-brand-500">
+          <div className="flex flex-col items-center gap-4 md:flex-row md:items-start">
+            {/* Logo */}
+            <div className="relative h-24 w-24 flex-shrink-0 overflow-hidden rounded-xl border-4 border-gray-200 dark:border-gray-700 md:h-32 md:w-32">
+              {merchant.logoUrl ? (
+                <Image
+                  src={merchant.logoUrl}
+                  alt={merchant.name}
+                  fill
+                  className="object-cover"
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center bg-brand-100 text-4xl font-bold text-brand-600 dark:bg-brand-900/20 dark:text-brand-400 md:text-5xl">
+                  {merchant.name.charAt(0).toUpperCase()}
+                </div>
+              )}
+            </div>
+
+            {/* Header Info */}
+            <div className="flex-1 text-center md:text-left">
+              <h2 className="mb-2 text-2xl font-bold text-gray-800 dark:text-white/90">
+                {merchant.name}
+              </h2>
+              <p className="mb-3 font-mono text-sm text-gray-500 dark:text-gray-400">
                 {merchant.code}
               </p>
+              <div className="flex flex-wrap items-center justify-center gap-2 md:justify-start">
+                <button
+                  onClick={handleToggleStatus}
+                  className={`inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium ${
+                    merchant.isActive
+                      ? "bg-success-100 text-success-700 dark:bg-success-900/20 dark:text-success-400"
+                      : "bg-error-100 text-error-700 dark:bg-error-900/20 dark:text-error-400"
+                  }`}
+                >
+                  <span className={`h-2 w-2 rounded-full ${
+                    merchant.isActive ? 'bg-success-500' : 'bg-error-500'
+                  }`}></span>
+                  {merchant.isActive ? "Active" : "Inactive"}
+                </button>
+                <span className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                  {merchant.currency}
+                </span>
+              </div>
             </div>
+          </div>
+        </div>
 
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-500 dark:text-gray-400">
-                Status
-              </label>
-              <button
-                onClick={handleToggleStatus}
-                className={`inline-flex rounded-full px-4 py-1.5 text-sm font-medium ${
-                  merchant.isActive
-                    ? "bg-success-100 text-success-700 dark:bg-success-900/20 dark:text-success-400"
-                    : "bg-error-100 text-error-700 dark:bg-error-900/20 dark:text-error-400"
-                }`}
-              >
-                {merchant.isActive ? "Active" : "Inactive"}
-              </button>
-            </div>
-
+        {/* Basic Information */}
+        <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] lg:p-6">
+          <h3 className="mb-5 text-lg font-semibold text-gray-800 dark:text-white/90">Contact Information</h3>
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             <div>
               <label className="mb-2 block text-sm font-medium text-gray-500 dark:text-gray-400">
                 Merchant Name

@@ -1,4 +1,37 @@
-import { Merchant, Order, OrderItem, Menu } from '@prisma/client';
+// Custom types based on Prisma schema
+type Merchant = {
+  id: bigint;
+  code: string;
+  name: string;
+  email: string;
+  phone?: string | null;
+  address?: string | null;
+  logoUrl?: string | null;
+  isActive: boolean;
+};
+
+type Menu = {
+  id: bigint;
+  name: string;
+  price: any; // Decimal
+  imageUrl?: string | null;
+};
+
+type OrderItem = {
+  id: bigint;
+  quantity: number;
+  menuPrice: any; // Decimal
+  menu: Menu;
+};
+
+type Order = {
+  id: bigint;
+  orderNumber: string;
+  status: string;
+  totalAmount: any; // Decimal
+  createdAt: Date;
+  orderItems: OrderItem[];
+};
 
 interface MerchantStaffDashboardProps {
   merchant: Merchant;
@@ -247,7 +280,7 @@ export default function MerchantStaffDashboard({
                     {formatDate(order.createdAt)}
                   </p>
                   <div className="mt-2 space-y-1">
-                    {order.orderItems.slice(0, 3).map((item) => (
+                    {order.orderItems.slice(0, 3).map((item: OrderItem) => (
                       <p
                         key={item.id.toString()}
                         className="text-sm text-gray-600 dark:text-gray-400"

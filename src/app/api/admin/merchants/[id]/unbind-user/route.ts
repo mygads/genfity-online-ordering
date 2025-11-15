@@ -3,11 +3,12 @@
  * PUT /api/admin/merchants/:id/unbind-user
  * Access: SUPER_ADMIN only
  * 
- * Removes user's merchant assignment and changes role back to CUSTOMER
+ * Removes user's merchant assignment WITHOUT changing their role
+ * User keeps their original role (MERCHANT_OWNER, MERCHANT_STAFF, etc.)
  */
 
 import { NextRequest } from 'next/server';
-import { db } from '@/lib/db';
+import prisma from '@/lib/db/client';
 import { successResponse } from '@/lib/middleware/errorHandler';
 import { withSuperAdmin } from '@/lib/middleware/auth';
 import { AuthContext } from '@/lib/types/auth';
@@ -31,75 +32,72 @@ async function unbindUserHandler(
 
   const userIdBigInt = BigInt(userId);
 
-  // Verify merchant exists
-  const merchantResult = await db.query(
-    'SELECT id, name FROM merchants WHERE id = $1 AND deleted_at IS NULL',
-    [merchantId.toString()]
-  );
+  // Verify merchant exists using Prisma
+  const merchant = await prisma.merchant.findUnique({
+    where: { id: merchantId },
+    select: { id: true, name: true },
+  });
 
-  if (merchantResult.rows.length === 0) {
+  if (!merchant) {
     throw new NotFoundError('Merchant not found', ERROR_CODES.MERCHANT_NOT_FOUND);
   }
 
-  // Verify user exists and is linked to this merchant
-  const userResult = await db.query(
-    `SELECT u.id, u.name, u.email, u.role 
-     FROM users u 
-     WHERE u.id = $1 AND u.deleted_at IS NULL`,
-    [userIdBigInt.toString()]
-  );
+  // Verify user exists using Prisma
+  const user = await prisma.user.findUnique({
+    where: { id: userIdBigInt },
+    select: { id: true, name: true, email: true, role: true },
+  });
 
-  if (userResult.rows.length === 0) {
+  if (!user) {
     throw new NotFoundError('User not found', ERROR_CODES.USER_NOT_FOUND);
   }
 
-  const user = userResult.rows[0];
+  // Verify user is linked to the merchant using Prisma
+  const merchantUserLink = await prisma.merchantUser.findFirst({
+    where: {
+      merchantId,
+      userId: userIdBigInt,
+    },
+  });
 
-  // Verify user is linked to the merchant
-  const linkResult = await db.query(
-    'SELECT id FROM merchant_users WHERE merchant_id = $1 AND user_id = $2',
-    [merchantId.toString(), userIdBigInt.toString()]
-  );
-
-  if (linkResult.rows.length === 0) {
+  if (!merchantUserLink) {
     throw new ValidationError('User is not linked to this merchant');
   }
 
-  // Begin transaction
-  const client = await db.connect();
-  try {
-    await client.query('BEGIN');
-
+  // Use Prisma transaction for atomicity
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const result = await prisma.$transaction(async (tx: any) => {
     // Delete merchant-user link
-    await client.query(
-      'DELETE FROM merchant_users WHERE merchant_id = $1 AND user_id = $2',
-      [merchantId.toString(), userIdBigInt.toString()]
-    );
-
-    // Change user role back to CUSTOMER
-    await client.query(
-      'UPDATE users SET role = $1 WHERE id = $2',
-      ['CUSTOMER', userIdBigInt.toString()]
-    );
-
-    await client.query('COMMIT');
-
-    return successResponse(
-      {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: 'CUSTOMER',
+    await tx.merchantUser.deleteMany({
+      where: {
+        merchantId,
+        userId: userIdBigInt,
       },
-      'User unbound successfully',
-      200
-    );
-  } catch (error) {
-    await client.query('ROLLBACK');
-    throw error;
-  } finally {
-    client.release();
-  }
+    });
+
+    // Get user data (DO NOT change role - keep it as is)
+    const updatedUser = await tx.user.findUnique({
+      where: { id: userIdBigInt },
+      select: { id: true, name: true, email: true, role: true },
+    });
+
+    if (!updatedUser) {
+      throw new NotFoundError('User not found after unbind');
+    }
+
+    return updatedUser;
+  });
+
+  return successResponse(
+    {
+      id: result.id.toString(),
+      name: result.name,
+      email: result.email,
+      role: result.role,
+    },
+    'User unbound successfully. Role remains unchanged.',
+    200
+  );
 }
 
 export const PUT = withSuperAdmin(unbindUserHandler);

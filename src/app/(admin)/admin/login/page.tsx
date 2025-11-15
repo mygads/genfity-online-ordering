@@ -118,6 +118,11 @@ function AdminLoginForm() {
         expiresAt,
       });
 
+      // Save profile picture URL separately for easy access
+      if (data.data.user.profilePictureUrl) {
+        localStorage.setItem('profilePictureUrl', data.data.user.profilePictureUrl);
+      }
+
       // Determine redirect URL based on role
       let redirectUrl = redirectPath;
       if (data.data.user.role === 'MERCHANT_OWNER' || data.data.user.role === 'MERCHANT_STAFF') {

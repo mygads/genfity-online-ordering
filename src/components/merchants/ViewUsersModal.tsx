@@ -9,6 +9,7 @@
 import { useState, useEffect } from 'react';
 import { getAdminToken } from '@/lib/utils/adminAuth';
 import { useToast } from '@/hooks/useToast';
+import ConfirmDialog from '@/components/modals/ConfirmDialog';
 
 interface MerchantUser {
   id: string;
@@ -38,6 +39,11 @@ export default function ViewUsersModal({
   const [users, setUsers] = useState<MerchantUser[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [unbindingUserId, setUnbindingUserId] = useState<string | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    userId: string;
+    userName: string;
+  }>({ isOpen: false, userId: '', userName: '' });
 
   /**
    * Fetch users linked to this merchant
@@ -60,7 +66,6 @@ export default function ViewUsersModal({
         showError('Error', data.message || 'Failed to load users');
       }
     } catch (err) {
-      console.error('Error fetching merchant users:', err);
       showError('Error', 'An error occurred while loading users');
     } finally {
       setIsLoading(false);
@@ -76,14 +81,20 @@ export default function ViewUsersModal({
   }, [isOpen, merchantId]);
 
   /**
+   * Show confirm dialog for unbinding
+   */
+  const showUnbindConfirm = (userId: string, userName: string) => {
+    setConfirmDialog({ isOpen: true, userId, userName });
+  };
+
+  /**
    * Handle unbinding user from merchant
    */
-  const handleUnbind = async (userId: string, userName: string) => {
-    if (!confirm(`Are you sure you want to unbind ${userName} from this merchant?`)) {
-      return;
-    }
-
+  const handleUnbind = async () => {
+    const { userId, userName } = confirmDialog;
+    setConfirmDialog({ isOpen: false, userId: '', userName: '' });
     setUnbindingUserId(userId);
+    
     try {
       const token = getAdminToken();
       const response = await fetch(`/api/admin/merchants/${merchantId}/unbind-user`, {
@@ -105,7 +116,6 @@ export default function ViewUsersModal({
         showError('Error', data.message || 'Failed to unbind user');
       }
     } catch (err) {
-      console.error('Error unbinding user:', err);
       showError('Error', 'An error occurred while unbinding user');
     } finally {
       setUnbindingUserId(null);
@@ -187,7 +197,7 @@ export default function ViewUsersModal({
                     )}
                   </div>
                   <button
-                    onClick={() => handleUnbind(user.id, user.name)}
+                    onClick={() => showUnbindConfirm(user.id, user.name)}
                     disabled={unbindingUserId === user.id}
                     className="ml-4 flex items-center gap-2 rounded-lg bg-error-500 px-4 py-2 text-sm font-medium text-white hover:bg-error-600 focus:outline-none focus:ring-3 focus:ring-error-500/20 disabled:cursor-not-allowed disabled:opacity-50"
                   >
@@ -221,6 +231,17 @@ export default function ViewUsersModal({
             Close
           </button>
         </div>
+
+        {/* Confirm Dialog */}
+        <ConfirmDialog
+          isOpen={confirmDialog.isOpen}
+          title="Unbind User"
+          message={`Are you sure you want to unbind ${confirmDialog.userName} from this merchant? The user's role will be changed to CUSTOMER.`}
+          confirmText="Unbind"
+          variant="danger"
+          onConfirm={handleUnbind}
+          onCancel={() => setConfirmDialog({ isOpen: false, userId: '', userName: '' })}
+        />
       </div>
     </div>
   );

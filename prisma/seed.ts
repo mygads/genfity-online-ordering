@@ -23,7 +23,7 @@ async function main() {
     console.log('✅ Super Admin already exists');
     superAdmin = existingAdmin;
   } else {
-    const hashedPassword = await bcrypt.hash('Admin@123456', 10);
+    const hashedPassword = await bcrypt.hash('1234abcd', 10);
 
     superAdmin = await prisma.user.create({
       data: {
@@ -86,7 +86,7 @@ async function main() {
   });
 
   if (!existingOwner) {
-    const ownerPassword = await bcrypt.hash('Owner@123456', 10);
+    const ownerPassword = await bcrypt.hash('1234abcd', 10);
 
     const merchantOwner = await prisma.user.create({
       data: {
@@ -116,7 +116,81 @@ async function main() {
   }
 
   // ============================================
-  // 4. CREATE MENU CATEGORIES
+  // 4. CREATE MERCHANT STAFF USER
+  // ============================================
+  const existingStaff = await prisma.user.findUnique({
+    where: { email: 'staff@kopikenangan.com' },
+  });
+
+  if (!existingStaff) {
+    const staffPassword = await bcrypt.hash('Staff@123456', 10);
+
+    const merchantStaff = await prisma.user.create({
+      data: {
+        name: 'Merchant Staff',
+        email: 'staff@kopikenangan.com',
+        passwordHash: staffPassword,
+        role: 'MERCHANT_STAFF',
+        isActive: true,
+        mustChangePassword: false,
+      },
+    });
+
+    // Link staff to merchant
+    await prisma.merchantUser.create({
+      data: {
+        merchantId: merchant.id,
+        userId: merchantStaff.id,
+        role: 'STAFF',
+      },
+    });
+
+    console.log('✅ Merchant Staff created:');
+    console.log('   Email: staff@kopikenangan.com');
+    console.log('   Password: Staff@123456');
+  } else {
+    console.log('✅ Merchant Staff already exists');
+  }
+
+  // ============================================
+  // 4. CREATE MERCHANT STAFF USER
+  // ============================================
+  const existingStaff = await prisma.user.findUnique({
+    where: { email: 'staff@kopikenangan.com' },
+  });
+
+  if (!existingStaff) {
+    const staffPassword = await bcrypt.hash('1234abcd', 10);
+
+    const merchantStaff = await prisma.user.create({
+      data: {
+        name: 'Merchant Staff',
+        email: 'staff@kopikenangan.com',
+        passwordHash: staffPassword,
+        role: 'MERCHANT_STAFF',
+        isActive: true,
+        mustChangePassword: false,
+      },
+    });
+
+    // Link staff to merchant
+    await prisma.merchantUser.create({
+      data: {
+        merchantId: merchant.id,
+        userId: merchantStaff.id,
+        role: 'STAFF',
+      },
+    });
+
+    console.log('✅ Merchant Staff created:');
+    console.log('   Email: staff@kopikenangan.com');
+    console.log('   Password: Staff@123456');
+  } else {
+    console.log('✅ Merchant Staff already exists');
+  }
+
+  // ============================================
+  // 5. CREATE MENU CATEGORIES
   // ============================================
   const categories = [
     { name: 'Coffee', description: 'Premium coffee beverages', sortOrder: 1 },
@@ -151,7 +225,7 @@ async function main() {
   }
 
   // ============================================
-  // 5. CREATE MENU ITEMS
+  // 6. CREATE MENU ITEMS
   // ============================================
   const menuItems = [
     // Coffee

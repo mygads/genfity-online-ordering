@@ -35,7 +35,7 @@ export default function StaffManagementPage() {
 
       const token = localStorage.getItem("accessToken");
       if (!token) {
-        router.push("/auth/signin");
+        router.push("/admin/login");
         return;
       }
 

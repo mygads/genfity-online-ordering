@@ -54,14 +54,14 @@ export async function POST(request: NextRequest) {
       request.headers.get('x-real-ip') || 
       'Unknown';
 
-    // Call AuthService login with remember me flag
+      // Call AuthService login with remember me flag
     const result = await authService.login(
       { email, password, rememberMe },
       userAgent,
       ipAddress
     );
 
-    // Return success response
+    // Return success response with profile picture
     return successResponse(result, 'Login successful', 200);
   } catch (error) {
     return handleError(error);

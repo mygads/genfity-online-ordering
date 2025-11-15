@@ -1,5 +1,12 @@
 import Link from 'next/link';
-import { Order } from '@prisma/client';
+// Custom types based on Prisma schema
+type Order = {
+  id: bigint;
+  orderNumber: string;
+  status: string;
+  totalAmount: any; // Decimal
+  createdAt: Date;
+};
 
 interface SuperAdminDashboardProps {
   stats: {

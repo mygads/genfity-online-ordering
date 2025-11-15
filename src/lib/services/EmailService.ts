@@ -98,7 +98,7 @@ class EmailService {
     email: string;
     tempPassword: string;
   }): Promise<boolean> {
-    const dashboardUrl = `${process.env.NEXT_PUBLIC_APP_URL}/auth/signin`;
+    const dashboardUrl = `${process.env.NEXT_PUBLIC_APP_URL}/admin/login`;
     const supportEmail = process.env.EMAIL_FROM || 'support@genfity.com';
 
     const html = getPasswordNotificationTemplate({

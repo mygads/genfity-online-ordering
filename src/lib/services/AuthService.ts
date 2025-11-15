@@ -166,6 +166,7 @@ class AuthService {
         email: user.email,
         role: user.role,
         merchantId: merchantIdString,
+        profilePictureUrl: user.profilePictureUrl,
       },
       accessToken,
       refreshToken,

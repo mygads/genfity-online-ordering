@@ -101,6 +101,7 @@ export function clearAdminAuth(): void {
     localStorage.removeItem('userName');
     localStorage.removeItem('userEmail');
     localStorage.removeItem('merchantId');
+    localStorage.removeItem('profilePictureUrl');
     
     // Clear cookie
     document.cookie = 'auth_token=; path=/; max-age=0';

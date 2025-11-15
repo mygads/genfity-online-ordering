@@ -32,6 +32,31 @@ export default function UserDropdown() {
   // Get user info from localStorage - only after mounted
   const userName = mounted && typeof window !== 'undefined' ? localStorage.getItem("userName") || "User" : "User";
   const userEmail = mounted && typeof window !== 'undefined' ? localStorage.getItem("userEmail") || "user@example.com" : "user@example.com";
+  const [profilePictureUrl, setProfilePictureUrl] = useState<string | null>(null);
+
+  // Load and listen for profile picture changes
+  useEffect(() => {
+    if (mounted && typeof window !== 'undefined') {
+      const updateProfilePicture = () => {
+        const url = localStorage.getItem('profilePictureUrl');
+        setProfilePictureUrl(url);
+      };
+
+      // Initial load
+      updateProfilePicture();
+
+      // Listen for storage changes (when profile is updated in another component)
+      window.addEventListener('storage', updateProfilePicture);
+      
+      // Listen for custom event (when profile is updated in same tab)
+      window.addEventListener('profilePictureUpdated', updateProfilePicture);
+
+      return () => {
+        window.removeEventListener('storage', updateProfilePicture);
+        window.removeEventListener('profilePictureUpdated', updateProfilePicture);
+      };
+    }
+  }, [mounted]);
   
   // Get role label
   const getRoleLabel = (role?: string) => {
@@ -53,10 +78,20 @@ export default function UserDropdown() {
         onClick={toggleDropdown} 
         className="flex items-center text-gray-700 dark:text-gray-400 dropdown-toggle"
       >
-        <span className="mr-3 overflow-hidden rounded-full h-11 w-11 bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
-          <svg className="w-6 h-6 text-gray-500 dark:text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-          </svg>
+        <span className="mr-3 overflow-hidden rounded-full h-11 w-11 bg-gray-100 dark:bg-gray-800 flex items-center justify-center relative">
+          {profilePictureUrl ? (
+            <Image
+              src={profilePictureUrl}
+              alt={userName}
+              fill
+              className="object-cover"
+              unoptimized
+            />
+          ) : (
+            <span className="text-base font-semibold text-brand-600 dark:text-brand-400">
+              {userName.charAt(0).toUpperCase()}
+            </span>
+          )}
         </span>
 
         <span className="block mr-1 font-medium text-theme-sm">{userName.split(' ')[0]}</span>

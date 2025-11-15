@@ -121,7 +121,7 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user }: Edit
     setIsLoading(true);
 
     try {
-      // Validation
+      // Validate required fields only
       if (!formData.name.trim()) {
         throw new Error('Name is required');
       }
@@ -132,7 +132,7 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user }: Edit
         throw new Error('Invalid email format');
       }
       
-      // Validate password if provided
+      // Validate password if provided (optional)
       if (formData.password && formData.password.length < 8) {
         throw new Error('Password must be at least 8 characters');
       }
@@ -142,21 +142,33 @@ export default function EditUserModal({ isOpen, onClose, onSuccess, user }: Edit
         throw new Error('Merchant must be selected for this role');
       }
 
-      // Build request body
+      // Phone is optional - no validation needed
+
+      // Build request body with only changed fields
       const requestBody: {
         name: string;
         email: string;
-        phone: string | null;
+        phone?: string | null;
         role: string;
         merchantId?: string;
         password?: string;
       } = {
         name: formData.name.trim(),
         email: formData.email.trim().toLowerCase(),
-        phone: formData.phone.trim() || null,
         role: formData.role,
-        merchantId: formData.merchantId || undefined,
       };
+
+      // Add phone only if provided or explicitly cleared
+      if (formData.phone.trim()) {
+        requestBody.phone = formData.phone.trim();
+      } else {
+        requestBody.phone = null;
+      }
+
+      // Add merchantId if applicable
+      if (formData.merchantId) {
+        requestBody.merchantId = formData.merchantId;
+      }
 
       // Only include password if it's being changed
       if (formData.password) {

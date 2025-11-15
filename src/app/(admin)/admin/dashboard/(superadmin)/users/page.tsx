@@ -8,6 +8,7 @@
 
 import { useState, useEffect } from 'react';
 import PageBreadcrumb from '@/components/common/PageBreadCrumb';
+import Image from 'next/image';
 
 import EditUserModal from './EditUserModal';
 import ToastContainer from '@/components/ui/ToastContainer';
@@ -22,6 +23,7 @@ interface User {
   phone: string | null;
   role: string;
   isActive: boolean;
+  profilePictureUrl?: string;
   merchantId?: string;
   merchantName?: string;
   createdAt: string;
@@ -271,6 +273,9 @@ export default function UsersPage() {
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50 text-left dark:border-white/[0.05] dark:bg-white/[0.02]">
                   <th className="px-5 py-3 text-start text-xs font-medium text-gray-500 dark:text-gray-400">
+                    Photo
+                  </th>
+                  <th className="px-5 py-3 text-start text-xs font-medium text-gray-500 dark:text-gray-400">
                     User
                   </th>
                   <th className="px-5 py-3 text-start text-xs font-medium text-gray-500 dark:text-gray-400">
@@ -296,7 +301,7 @@ export default function UsersPage() {
               <tbody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
                 {isLoading ? (
                   <tr>
-                    <td colSpan={7} className="px-5 py-8 text-center">
+                    <td colSpan={8} className="px-5 py-8 text-center">
                       <div className="flex items-center justify-center gap-2 text-gray-500 dark:text-gray-400">
                         <div className="h-5 w-5 animate-spin rounded-full border-2 border-brand-500 border-t-transparent"></div>
                         <span className="text-sm">Loading users...</span>
@@ -305,7 +310,7 @@ export default function UsersPage() {
                   </tr>
                 ) : paginatedUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-5 py-8 text-center">
+                    <td colSpan={8} className="px-5 py-8 text-center">
                       <p className="text-sm text-gray-500 dark:text-gray-400">
                         {searchQuery || roleFilter || statusFilter 
                           ? 'No users match the current filters' 
@@ -316,6 +321,23 @@ export default function UsersPage() {
                 ) : (
                   paginatedUsers.map((user) => (
                     <tr key={user.id}>
+                      <td className="px-5 py-4">
+                        <div className="relative h-10 w-10 overflow-hidden rounded-full border-2 border-gray-200 dark:border-gray-700">
+                          {user.profilePictureUrl ? (
+                            <Image
+                              src={user.profilePictureUrl}
+                              alt={user.name}
+                              fill
+                              className="object-cover"
+                              unoptimized
+                            />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center bg-brand-100 text-sm font-semibold text-brand-600 dark:bg-brand-900/20 dark:text-brand-400">
+                              {user.name.charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                        </div>
+                      </td>
                       <td className="px-5 py-4">
                         <div className="text-sm font-medium text-gray-800 dark:text-white/90">{user.name}</div>
                         <div className="text-xs text-gray-500 dark:text-gray-400">ID: {user.id}</div>

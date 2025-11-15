@@ -46,18 +46,14 @@ async function getUsersHandler(
 
   let users: UserWithMerchants[];
   
-  if (role) {
+  // If merchantId is specified, fetch users linked to that merchant only
+  if (merchantId) {
+    const merchantIdBigInt = BigInt(merchantId);
+    users = await userRepository.findByMerchant(merchantIdBigInt);
+  } else if (role) {
     users = await userRepository.findByRole(role);
   } else {
     users = await userRepository.findAll();
-  }
-
-  // Filter by merchant if specified
-  if (merchantId && users) {
-    const merchantIdBigInt = BigInt(merchantId);
-    users = users.filter((user: UserWithMerchants) => 
-      user.merchantUsers?.some((mu) => mu.merchantId === merchantIdBigInt)
-    );
   }
 
   // Format response with merchant info

@@ -102,6 +102,7 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUs
 
     try {
       // Validation
+      // Validate required fields only
       if (!formData.name.trim()) {
         throw new Error('Name is required');
       }
@@ -120,6 +121,8 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUs
         throw new Error('Merchant must be selected for this role');
       }
 
+      // Phone is optional - no validation needed
+
       // Call API
       const token = getAdminToken();
       const response = await fetch('/api/admin/users', {
@@ -131,10 +134,10 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUs
         body: JSON.stringify({
           name: formData.name.trim(),
           email: formData.email.trim().toLowerCase(),
-          phone: formData.phone.trim() || undefined,
+          ...(formData.phone.trim() && { phone: formData.phone.trim() }),
           password: formData.password,
           role: formData.role,
-          merchantId: formData.merchantId || undefined,
+          ...(formData.merchantId && { merchantId: formData.merchantId }),
         }),
       });
 

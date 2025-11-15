@@ -6,8 +6,9 @@ import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import { useToast } from "@/hooks/useToast";
 import ToastContainer from "@/components/ui/ToastContainer";
 import ConfirmDialog from "@/components/modals/ConfirmDialog";
-import AddOwnerModal from "./AddOwnerModal";
-import ViewUsersModal from "./ViewUsersModal";
+import AddOwnerModal from "@/components/merchants/AddOwnerModal";
+import ViewUsersModal from "@/components/merchants/ViewUsersModal";
+import Image from "next/image";
 
 interface Merchant {
   id: string;
@@ -16,6 +17,10 @@ interface Merchant {
   email: string;
   phone: string;
   address: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  logoUrl?: string;
   isActive: boolean;
   createdAt: string;
   openingHours?: Array<{
@@ -23,6 +28,15 @@ interface Merchant {
     openTime: string | null;
     closeTime: string | null;
     isClosed: boolean;
+  }>;
+  merchantUsers?: Array<{
+    role: string;
+    user: {
+      id: string;
+      name: string;
+      email: string;
+      role: string;
+    };
   }>;
 }
 
@@ -43,10 +57,16 @@ export default function MerchantsPage() {
   });
   
   // Add owner modal state
-  const [addOwnerModal, setAddOwnerModal] = useState({
+  const [addOwnerModal, setAddOwnerModal] = useState<{
+    isOpen: boolean;
+    merchantId: string;
+    merchantName: string;
+    currentOwner?: { name: string; email: string } | null;
+  }>({
     isOpen: false,
     merchantId: "",
     merchantName: "",
+    currentOwner: null,
   });
   
   // View users modal state
@@ -64,7 +84,7 @@ export default function MerchantsPage() {
 
       const token = localStorage.getItem("accessToken");
       if (!token) {
-        router.push("/auth/signin");
+        router.push("/admin/login");
         return;
       }
 
@@ -80,7 +100,7 @@ export default function MerchantsPage() {
 
       if (!response.ok) {
         if (response.status === 401) {
-          router.push("/auth/signin");
+          router.push("/admin/login");
           return;
         }
         throw new Error("Failed to fetch merchants");
@@ -292,6 +312,9 @@ export default function MerchantsPage() {
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50 text-left dark:border-white/[0.05] dark:bg-white/[0.02]">
                     <th className="px-5 py-3 text-start text-xs font-medium text-gray-500 dark:text-gray-400">
+                      Logo
+                    </th>
+                    <th className="px-5 py-3 text-start text-xs font-medium text-gray-500 dark:text-gray-400">
                       Code
                     </th>
                     <th className="px-5 py-3 text-start text-xs font-medium text-gray-500 dark:text-gray-400">
@@ -317,7 +340,7 @@ export default function MerchantsPage() {
                 <tbody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
                   {merchants.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-10 text-center">
+                      <td colSpan={8} className="py-10 text-center">
                         <p className="text-sm text-gray-500 dark:text-gray-400">No merchants found</p>
                         <button
                           onClick={() => router.push("/admin/dashboard/merchants/create")}
@@ -333,6 +356,23 @@ export default function MerchantsPage() {
                       
                       return (
                       <tr key={merchant.id}>
+                        <td className="px-5 py-4">
+                          {/* Merchant Logo */}
+                          <div className="relative h-10 w-10 overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
+                            {merchant.logoUrl ? (
+                              <Image
+                                src={merchant.logoUrl}
+                                alt={merchant.name}
+                                fill
+                                className="object-cover"
+                              />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center bg-brand-100 text-sm font-bold text-brand-600 dark:bg-brand-900/20 dark:text-brand-400">
+                                {merchant.name.charAt(0).toUpperCase()}
+                              </div>
+                            )}
+                          </div>
+                        </td>
                         <td className="px-5 py-4">
                           <span className="font-mono text-sm text-gray-600 dark:text-gray-400">
                             {merchant.code}
@@ -401,7 +441,7 @@ export default function MerchantsPage() {
                             <button
                               onClick={() => router.push(`/admin/dashboard/merchants/${merchant.id}/edit`)}
                               className="text-orange-500 hover:text-orange-600 dark:text-orange-400"
-                              title="Edit"
+                              title="Edit Merchant"
                             >
                               <svg
                                 className="h-5 w-5"
@@ -437,11 +477,19 @@ export default function MerchantsPage() {
                               </svg>
                             </button>
                             <button
-                              onClick={() => setAddOwnerModal({
-                                isOpen: true,
-                                merchantId: merchant.id,
-                                merchantName: merchant.name,
-                              })}
+                              onClick={() => {
+                                // Find current owner
+                                const owner = merchant.merchantUsers?.find(mu => mu.role === 'OWNER');
+                                setAddOwnerModal({
+                                  isOpen: true,
+                                  merchantId: merchant.id,
+                                  merchantName: merchant.name,
+                                  currentOwner: owner ? {
+                                    name: owner.user.name,
+                                    email: owner.user.email,
+                                  } : null,
+                                });
+                              }}
                               className="text-purple-500 hover:text-purple-600 dark:text-purple-400"
                               title="Add Owner"
                             >
@@ -507,12 +555,13 @@ export default function MerchantsPage() {
       {/* Add Owner Modal */}
       <AddOwnerModal
         isOpen={addOwnerModal.isOpen}
-        onClose={() => setAddOwnerModal({ isOpen: false, merchantId: "", merchantName: "" })}
+        onClose={() => setAddOwnerModal({ isOpen: false, merchantId: "", merchantName: "", currentOwner: null })}
         onSuccess={() => {
           fetchMerchants();
         }}
         merchantId={addOwnerModal.merchantId}
         merchantName={addOwnerModal.merchantName}
+        currentOwner={addOwnerModal.currentOwner}
       />
       
       {/* View Users Modal */}
@@ -537,7 +586,6 @@ export default function MerchantsPage() {
         onCancel={() => setDeleteDialog({ isOpen: false, merchantId: "", merchantName: "" })}
       />
       
-      {/* Toast Notifications */}
       <ToastContainer toasts={toasts} />
     </div>
   );
