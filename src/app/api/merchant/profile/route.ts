@@ -98,7 +98,7 @@ async function handlePut(req: NextRequest, authContext: AuthContext) {
 
     const body = await req.json();
 
-    // Update merchant
+    // Update merchant (isActive is excluded - only super admin can change it)
     const updatedMerchant = await merchantService.updateMerchant(
       merchantUser.merchantId,
       {

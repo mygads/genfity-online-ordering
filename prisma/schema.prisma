@@ -82,6 +82,7 @@ model Merchant {
   mapUrl          String?               @map("map_url")
   description     String?
   isActive        Boolean               @default(true) @map("is_active")
+  isOpen          Boolean               @default(true) @map("is_open")
   enableTax       Boolean               @default(false) @map("enable_tax")
   taxPercentage   Decimal?              @map("tax_percentage") @db.Decimal(5, 2)
   currency        String                @default("AUD")

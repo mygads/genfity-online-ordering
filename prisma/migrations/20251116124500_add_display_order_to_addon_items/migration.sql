@@ -1,5 +1,5 @@
 -- AlterTable
-ALTER TABLE "addon_items" ADD COLUMN "display_order" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "genfity"."addon_items" ADD COLUMN IF NOT EXISTS "display_order" INTEGER NOT NULL DEFAULT 0;
 
 -- CreateIndex
-CREATE INDEX "addon_items_display_order_idx" ON "addon_items"("display_order");
+CREATE INDEX IF NOT EXISTS "addon_items_display_order_idx" ON "genfity"."addon_items"("display_order");

@@ -17,13 +17,6 @@ interface MerchantBannerProps {
   isExpanded: boolean;
 }
 
-interface OpeningHour {
-  dayOfWeek: number;
-  openTime: string;
-  closeTime: string;
-  isClosed: boolean;
-}
-
 /**
  * Merchant Banner Component
  * Displays merchant info in sidebar with logo, name, and status
@@ -33,19 +26,6 @@ const MerchantBanner: React.FC<MerchantBannerProps> = ({ isExpanded }) => {
   const router = useRouter();
   const [merchant, setMerchant] = useState<MerchantData | null>(null);
   const [loading, setLoading] = useState(true);
-
-  const checkIfOpen = useCallback((openingHours: OpeningHour[]): boolean => {
-    if (!openingHours || openingHours.length === 0) return false;
-
-    const now = new Date();
-    const currentDay = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
-    const currentTime = now.toTimeString().slice(0, 5); // HH:MM format
-
-    const todayHours = openingHours.find((h) => h.dayOfWeek === currentDay);
-    if (!todayHours || todayHours.isClosed) return false;
-
-    return currentTime >= todayHours.openTime && currentTime <= todayHours.closeTime;
-  }, []);
 
   const fetchMerchantData = useCallback(async () => {
     try {
@@ -62,16 +42,14 @@ const MerchantBanner: React.FC<MerchantBannerProps> = ({ isExpanded }) => {
         const data = await response.json();
         const merchantData = data.data?.merchant || data.data;
         
-        // Determine if merchant is currently open based on opening hours
-        const isOpen = checkIfOpen(merchantData.openingHours || []);
-        
+        // Use isOpen from database (controlled by merchant owner)
         setMerchant({
           id: merchantData.id,
           name: merchantData.name,
           code: merchantData.code,
           logoUrl: merchantData.logoUrl,
           isActive: merchantData.isActive,
-          isOpen,
+          isOpen: merchantData.isOpen ?? true,
         });
       }
     } catch (error) {
@@ -79,10 +57,23 @@ const MerchantBanner: React.FC<MerchantBannerProps> = ({ isExpanded }) => {
     } finally {
       setLoading(false);
     }
-  }, [checkIfOpen]);
+  }, []);
 
   useEffect(() => {
     fetchMerchantData();
+    
+    // Listen for merchant status updates
+    const handleStatusUpdate = () => {
+      fetchMerchantData();
+    };
+    
+    window.addEventListener('merchantStatusUpdated', handleStatusUpdate);
+    window.addEventListener('focus', handleStatusUpdate);
+    
+    return () => {
+      window.removeEventListener('merchantStatusUpdated', handleStatusUpdate);
+      window.removeEventListener('focus', handleStatusUpdate);
+    };
   }, [fetchMerchantData]);
 
   const handleClick = () => {
@@ -115,6 +106,7 @@ const MerchantBanner: React.FC<MerchantBannerProps> = ({ isExpanded }) => {
         bgColor: "bg-gray-50 dark:bg-gray-900/50",
         borderColor: "border-gray-200 dark:border-gray-700",
         dotColor: "bg-gray-400",
+        ringColor: "ring-gray-400/20",
         text: "Inactive",
       };
     }
@@ -125,15 +117,17 @@ const MerchantBanner: React.FC<MerchantBannerProps> = ({ isExpanded }) => {
         bgColor: "bg-success-50 dark:bg-success-900/20",
         borderColor: "border-success-200 dark:border-success-800",
         dotColor: "bg-success-500",
+        ringColor: "ring-success-500/20",
         text: "Open Now",
       };
     }
     
     return {
-      color: "text-gray-700 dark:text-gray-300",
-      bgColor: "bg-white dark:bg-gray-900",
-      borderColor: "border-gray-200 dark:border-gray-700",
-      dotColor: "bg-gray-400",
+      color: "text-red-700 dark:text-red-400",
+      bgColor: "bg-red-50 dark:bg-red-900/20",
+      borderColor: "border-red-200 dark:border-red-800",
+      dotColor: "bg-red-500",
+      ringColor: "ring-red-500/20",
       text: "Closed",
     };
   };
@@ -141,64 +135,88 @@ const MerchantBanner: React.FC<MerchantBannerProps> = ({ isExpanded }) => {
   const statusConfig = getStatusConfig();
 
   return (
-    <div className="mb-6 px-1">
+    <div className="mb-6">
       <button
         onClick={handleClick}
-        className={`group relative w-full overflow-hidden rounded-2xl border ${statusConfig.borderColor} bg-linear-to-br ${statusConfig.bgColor} p-4 transition-all duration-200 hover:shadow-lg hover:scale-[1.02] ${
-          isExpanded ? '' : 'flex flex-col items-center'
+        className={`group relative w-full transition-all duration-200 ${
+          isExpanded 
+            ? `rounded-xl border ${statusConfig.borderColor} bg-white dark:bg-gray-900 p-4 hover:shadow-md hover:border-gray-300 dark:hover:border-gray-700`
+            : 'flex justify-center'
         }`}
       >
-        {/* Background decoration */}
-        <div className="absolute right-0 top-0 h-20 w-20 -translate-y-8 translate-x-8 rounded-full bg-brand-500/5 blur-2xl transition-all group-hover:scale-150"></div>
         
-        <div className={`relative ${isExpanded ? 'flex items-center gap-4' : 'flex flex-col items-center gap-2'}`}>
+        <div className={`relative ${isExpanded ? 'flex items-center gap-4' : ''}`}>
           {/* Logo with status indicator */}
           <div className="relative shrink-0">
-            <div className={`relative overflow-hidden rounded-xl ${isExpanded ? 'h-14 w-14' : 'h-12 w-12'} border-2 ${statusConfig.borderColor} bg-white shadow-sm dark:bg-gray-800`}>
-              {merchant.logoUrl ? (
-                <Image
-                  src={merchant.logoUrl}
-                  alt={merchant.name}
-                  fill
-                  className="object-cover"
-                />
-              ) : (
-                <div className={`flex h-full w-full items-center justify-center bg-linear-to-br from-brand-100 to-brand-200 font-bold ${statusConfig.color} dark:from-brand-900/20 dark:to-brand-800/20 ${isExpanded ? 'text-xl' : 'text-lg'}`}>
-                  {merchant.name.charAt(0).toUpperCase()}
+            {isExpanded ? (
+              <>
+                <div className={`relative overflow-hidden rounded-xl h-14 w-14 border-2 ${statusConfig.borderColor} bg-white shadow-sm dark:bg-gray-800`}>
+                  {merchant.logoUrl ? (
+                    <Image
+                      src={merchant.logoUrl}
+                      alt={merchant.name}
+                      fill
+                      className="object-cover"
+                    />
+                  ) : (
+                    <div className={`flex h-full w-full items-center justify-center bg-linear-to-br from-brand-100 to-brand-200 text-xl font-bold ${statusConfig.color} dark:from-brand-900/20 dark:to-brand-800/20`}>
+                      {merchant.name.charAt(0).toUpperCase()}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-            {/* Status dot indicator */}
-            <div className={`absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full ${statusConfig.dotColor} border-2 border-white dark:border-gray-900 shadow-sm`}></div>
+                {/* Status dot indicator */}
+                <div className={`absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full ${statusConfig.dotColor} border-2 border-white dark:border-gray-900 shadow-sm`}></div>
+              </>
+            ) : (
+              /* Minimized: Only logo with prominent dot */
+              <div className="relative">
+                <div className={`relative overflow-hidden rounded-xl h-12 w-12 border-2 ${statusConfig.borderColor} bg-white shadow-md dark:bg-gray-800 transition-all group-hover:scale-110`}>
+                  {merchant.logoUrl ? (
+                    <Image
+                      src={merchant.logoUrl}
+                      alt={merchant.name}
+                      fill
+                      className="object-cover"
+                    />
+                  ) : (
+                    <div className={`flex h-full w-full items-center justify-center bg-linear-to-br from-brand-100 to-brand-200 text-lg font-bold ${statusConfig.color} dark:from-brand-900/20 dark:to-brand-800/20`}>
+                      {merchant.name.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                </div>
+                {/* Large prominent status dot */}
+                <div className={`absolute -bottom-1 -right-1 h-5 w-5 rounded-full ${statusConfig.dotColor} border-[3px] border-white dark:border-gray-900 shadow-lg ring-4 ${statusConfig.ringColor} transition-all group-hover:scale-110`}>
+                  {merchant.isActive && merchant.isOpen && (
+                    <div className={`h-full w-full rounded-full ${statusConfig.dotColor} animate-pulse`}></div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Merchant Info */}
-          {isExpanded ? (
-            <div className="flex-1 text-left">
-              <h3 className="line-clamp-1 text-sm font-bold text-gray-900 dark:text-white">
-                {merchant.name}
-              </h3>
-              <div className={`mt-1 flex items-center gap-1.5 text-xs font-semibold ${statusConfig.color}`}>
-                <div className={`h-1.5 w-1.5 rounded-full ${statusConfig.dotColor} animate-pulse`}></div>
-                <span>{statusConfig.text}</span>
-              </div>
-            </div>
-          ) : (
-            <div className={`text-[10px] font-bold uppercase tracking-wide ${statusConfig.color}`}>
-              {statusConfig.text}
-            </div>
-          )}
-
-          {/* Arrow indicator when expanded */}
+          {/* Merchant Info - Only show when expanded */}
           {isExpanded && (
-            <svg
-              className={`h-5 w-5 shrink-0 ${statusConfig.color} transition-transform group-hover:translate-x-1`}
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
-            </svg>
+            <>
+              <div className="flex-1 text-left">
+                <h3 className="line-clamp-1 text-sm font-bold text-gray-900 dark:text-white">
+                  {merchant.name}
+                </h3>
+                <div className={`mt-1 flex items-center gap-1.5 text-xs font-semibold ${statusConfig.color}`}>
+                  <div className={`h-1.5 w-1.5 rounded-full ${statusConfig.dotColor} animate-pulse`}></div>
+                  <span>{statusConfig.text}</span>
+                </div>
+              </div>
+
+              {/* Arrow indicator */}
+              <svg
+                className={`h-5 w-5 shrink-0 ${statusConfig.color} transition-transform group-hover:translate-x-1`}
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+              </svg>
+            </>
           )}
         </div>
       </button>
