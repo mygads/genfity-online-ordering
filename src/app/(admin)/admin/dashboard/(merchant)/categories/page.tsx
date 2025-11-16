@@ -4,6 +4,9 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import Image from "next/image";
+import CategoryDnDList from "@/components/ui/CategoryDnDList";
+import EmptyState from "@/components/ui/EmptyState";
+import { HelpTooltip } from "@/components/ui/Tooltip";
 
 interface Category {
   id: string;
@@ -49,6 +52,7 @@ export default function MerchantCategoriesPage() {
   const [availableMenus, setAvailableMenus] = useState<MenuItem[]>([]);
   const [categoryMenus, setCategoryMenus] = useState<MenuItem[]>([]);
   const [sortBy, setSortBy] = useState<string>("manual");
+  const [useDragDrop, setUseDragDrop] = useState<boolean>(true);
   const [formData, setFormData] = useState<CategoryFormData>({
     name: "",
     description: "",
@@ -245,6 +249,44 @@ export default function MerchantCategoriesPage() {
     setFormData({ name: "", description: "", displayOrder: 1, sortOrder: 0 });
     setError(null);
     setSuccess(null);
+  };
+
+  const handleReorder = async (reorderedCategories: Category[]) => {
+    try {
+      const token = localStorage.getItem("accessToken");
+      if (!token) {
+        router.push("/admin/login");
+        return;
+      }
+
+      setCategories(reorderedCategories);
+
+      const response = await fetch("/api/merchant/categories/reorder", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          categories: reorderedCategories.map((cat, idx) => ({
+            id: cat.id,
+            sortOrder: idx,
+          })),
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || "Failed to reorder categories");
+      }
+
+      setSuccess("Categories reordered successfully!");
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An error occurred");
+      setTimeout(() => setError(null), 5000);
+      fetchCategories();
+    }
   };
 
   const handleManageMenus = async (category: Category) => {
@@ -555,6 +597,18 @@ export default function MerchantCategoriesPage() {
                 className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30"
               />
             </div>
+            <div className="flex items-center gap-2">
+              <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                <input
+                  type="checkbox"
+                  checked={useDragDrop}
+                  onChange={(e) => setUseDragDrop(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                />
+                Drag & Drop
+              </label>
+              <HelpTooltip content="Enable drag and drop to reorder categories manually" />
+            </div>
             <div>
               <select
                 value={filterStatus}
@@ -566,37 +620,39 @@ export default function MerchantCategoriesPage() {
                 <option value="inactive">Inactive</option>
               </select>
             </div>
-            <div>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 text-sm text-gray-800 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90"
-              >
-                <option value="manual">Manual Order</option>
-                <option value="name-asc">Name (A-Z)</option>
-                <option value="name-desc">Name (Z-A)</option>
-                <option value="menu-count">Menu Count (Most)</option>
-              </select>
-            </div>
+            {!useDragDrop && (
+              <div>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 text-sm text-gray-800 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90"
+                >
+                  <option value="manual">Manual Order</option>
+                  <option value="name-asc">Name (A-Z)</option>
+                  <option value="name-desc">Name (Z-A)</option>
+                  <option value="menu-count">Menu Count (Most)</option>
+                </select>
+              </div>
+            )}
           </div>
           
           {filteredCategories.length === 0 ? (
-            <div className="py-10 text-center">
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                {categories.length === 0 ? "No categories found" : "No categories match your filters"}
-              </p>
-              {categories.length === 0 && (
-                <button
-                  onClick={() => setShowForm(true)}
-                  className="mt-4 inline-flex h-11 items-center gap-2 rounded-lg bg-brand-500 px-6 text-sm font-medium text-white hover:bg-brand-600"
-                >
-                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                  Create First Category
-                </button>
-              )}
-            </div>
+            <EmptyState
+              type={categories.length === 0 ? "no-category" : "no-results"}
+              title={categories.length === 0 ? undefined : "No categories match your filters"}
+              description={categories.length === 0 ? undefined : "Try adjusting your filters"}
+              actionLabel={categories.length === 0 ? "Create First Category" : undefined}
+              onAction={categories.length === 0 ? () => setShowForm(true) : undefined}
+            />
+          ) : useDragDrop ? (
+            <CategoryDnDList
+              categories={filteredCategories}
+              onReorder={handleReorder}
+              onEdit={handleEdit}
+              onDelete={(id, name) => handleDelete(id, name)}
+              onToggleActive={(id, isActive, name) => handleToggleActive(id, isActive, name)}
+              onManageMenus={handleManageMenus}
+            />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full table-auto">

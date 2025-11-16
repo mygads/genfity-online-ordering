@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import ViewAddonItemsModal from "@/components/addon-categories/ViewAddonItemsModal";
+import EmptyState from "@/components/ui/EmptyState";
 
 interface AddonCategory {
   id: string;
@@ -495,22 +496,12 @@ export default function AddonCategoriesPage() {
           </div>
           
           {filteredCategories.length === 0 ? (
-            <div className="py-10 text-center">
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                {categories.length === 0 ? "No addon categories found" : "No categories match your filters"}
-              </p>
-              {categories.length === 0 && (
-                <button
-                  onClick={() => setShowForm(true)}
-                  className="mt-4 inline-flex h-11 items-center gap-2 rounded-lg bg-brand-500 px-6 text-sm font-medium text-white hover:bg-brand-600"
-                >
-                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                  Create First Addon Category
-                </button>
-              )}
-            </div>
+            <EmptyState
+              type={categories.length === 0 ? "no-addon" : "no-results"}
+              title={categories.length === 0 ? undefined : "No addon categories match your filters"}
+              description={categories.length === 0 ? undefined : "Try adjusting your search or filters"}
+              onAction={categories.length === 0 ? () => setShowForm(true) : undefined}
+            />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full table-auto">

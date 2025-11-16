@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import Image from "next/image";
+import QuickFilterPills, { menuFilterPresets } from "@/components/ui/QuickFilterPills";
+import EmptyState from "@/components/ui/EmptyState";
+import DuplicateMenuButton from "@/components/menu/DuplicateMenuButton";
 
 interface MenuItem {
   id: string;
@@ -69,6 +72,8 @@ export default function MerchantMenuPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [filterStock, setFilterStock] = useState<string[]>([]);
+  const [filterPromo, setFilterPromo] = useState<string[]>([]);
 
   const fetchData = async () => {
     try {
@@ -278,9 +283,30 @@ export default function MerchantMenuPage() {
     }
     // if "all", don't filter - show everything
 
+    // Stock filters
+    if (filterStock.length > 0) {
+      filtered = filtered.filter(item => {
+        if (!item.trackStock) return filterStock.includes('no-track');
+        const stockQty = item.stockQty || 0;
+        if (filterStock.includes('in-stock') && stockQty > 0) return true;
+        if (filterStock.includes('low-stock') && stockQty > 0 && stockQty <= 10) return true;
+        if (filterStock.includes('out-of-stock') && stockQty === 0) return true;
+        return false;
+      });
+    }
+
+    // Promo filters
+    if (filterPromo.length > 0) {
+      filtered = filtered.filter(item => {
+        if (filterPromo.includes('promo') && item.isPromo) return true;
+        if (filterPromo.includes('no-promo') && !item.isPromo) return true;
+        return false;
+      });
+    }
+
     setFilteredMenuItems(filtered);
     setCurrentPage(1); // Reset to first page when filters change
-  }, [menuItems, searchQuery, filterCategory, filterStatus]);
+  }, [menuItems, searchQuery, filterCategory, filterStatus, filterStock, filterPromo]);
 
   // Pagination logic
   const indexOfLastItem = currentPage * itemsPerPage;
@@ -334,7 +360,7 @@ export default function MerchantMenuPage() {
           </div>
 
           {/* Search and Filters */}
-          <div className="mb-5 grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div className="mb-5 space-y-4">
             <div>
               <input
                 type="text"
@@ -344,48 +370,60 @@ export default function MerchantMenuPage() {
                 className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30"
               />
             </div>
-            <div>
-              <select
-                value={filterCategory}
-                onChange={(e) => setFilterCategory(e.target.value)}
-                className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 text-sm text-gray-800 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90"
-              >
-                <option value="all">All Categories</option>
-                {categories.map((cat) => (
-                  <option key={cat.id} value={cat.id}>{cat.name}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <select
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-                className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 text-sm text-gray-800 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90"
-              >
-                <option value="all">All Status</option>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-              </select>
+            
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex-1 min-w-[200px]">
+                <select
+                  value={filterCategory}
+                  onChange={(e) => setFilterCategory(e.target.value)}
+                  className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 text-sm text-gray-800 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90"
+                >
+                  <option value="all">All Categories</option>
+                  {categories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Status</label>
+                <QuickFilterPills
+                  filters={menuFilterPresets.status}
+                  activeFilters={filterStatus === 'all' ? [] : [filterStatus]}
+                  onChange={(values) => setFilterStatus(values.length > 0 ? values[0] : 'all')}
+                  multiSelect={false}
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Stock</label>
+                <QuickFilterPills
+                  filters={menuFilterPresets.stock}
+                  activeFilters={filterStock}
+                  onChange={setFilterStock}
+                  multiSelect={true}
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Promo</label>
+                <QuickFilterPills
+                  filters={menuFilterPresets.promo}
+                  activeFilters={filterPromo}
+                  onChange={setFilterPromo}
+                  multiSelect={true}
+                />
+              </div>
             </div>
           </div>
           
           {filteredMenuItems.length === 0 ? (
-            <div className="py-10 text-center">
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                {menuItems.length === 0 ? "No menu items found" : "No items match your filters"}
-              </p>
-              {menuItems.length === 0 && (
-                <Link
-                  href="/admin/dashboard/menu/create"
-                  className="mt-4 inline-flex h-11 items-center gap-2 rounded-lg bg-brand-500 px-6 text-sm font-medium text-white hover:bg-brand-600"
-                >
-                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                  Create First Menu Item
-                </Link>
-              )}
-            </div>
+            <EmptyState
+              type={menuItems.length === 0 ? "no-menu" : "no-results"}
+              title={menuItems.length === 0 ? undefined : "No menu items match your filters"}
+              description={menuItems.length === 0 ? undefined : "Try adjusting your search or filters"}
+              onAction={menuItems.length === 0 ? () => router.push('/admin/dashboard/menu/create') : undefined}
+            />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full table-auto">
@@ -570,6 +608,22 @@ export default function MerchantMenuPage() {
                                     </svg>
                                     Edit Menu
                                   </Link>
+                                  <DuplicateMenuButton
+                                    menuId={item.id}
+                                    menuName={item.name}
+                                    variant="dropdown-item"
+                                    onSuccess={() => {
+                                      fetchData();
+                                      setOpenDropdownId(null);
+                                      setSuccess('Menu duplicated successfully!');
+                                      setTimeout(() => setSuccess(null), 3000);
+                                    }}
+                                    onError={(error) => {
+                                      setOpenDropdownId(null);
+                                      setError(error);
+                                      setTimeout(() => setError(null), 5000);
+                                    }}
+                                  />
                                   <div className="border-t border-gray-200 dark:border-gray-700" />
                                   <button
                                     onClick={() => {

@@ -1,6 +1,8 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
+import AddonInputTypeSelector from "@/components/ui/AddonInputTypeSelector";
+import { HelpTooltip } from "@/components/ui/Tooltip";
 
 interface AddonCategory {
   id: string;
@@ -131,30 +133,26 @@ export default function AddonItemFormModal({
                 Enter 0 for free addon items
               </p>
             </div>
+          </div>
 
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Input Type <span className="text-error-500">*</span>
-              </label>
-              <select
-                name="inputType"
-                value={formData.inputType}
-                onChange={onChange}
-                required
-                className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 text-sm text-gray-800 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90"
-              >
-                <option value="SELECT">SELECT - Single Choice (qty = 1)</option>
-                <option value="QTY">QTY - Quantity Input (can select multiple)</option>
-              </select>
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  {formData.inputType === "SELECT" 
-                    ? "Customer can only select or not select (0 or 1)"
-                    : "Customer can input quantity (0 to max)"
-                  }
-                </p>
-              </div>
-            </div>          <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
-            <div className="flex items-center">
+          {/* Input Type Selector */}
+          <div>
+            <AddonInputTypeSelector
+              value={formData.inputType === "SELECT" ? "radio" : "quantity"}
+              minSelection={(categories.find(c => c.id === formData.addonCategoryId)?.minSelection) || 0}
+              maxSelection={(categories.find(c => c.id === formData.addonCategoryId)?.maxSelection) || null}
+              onChange={(newType) => {
+                const apiType = newType === 'radio' ? 'SELECT' : 'QTY';
+                const event = {
+                  target: { name: 'inputType', value: apiType }
+                } as React.ChangeEvent<HTMLSelectElement>;
+                onChange(event);
+              }}
+            />
+          </div>
+
+          <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+            <div className="flex items-center gap-2">
               <input
                 type="checkbox"
                 id="trackStock"
@@ -163,9 +161,10 @@ export default function AddonItemFormModal({
                 onChange={onChange}
                 className="h-4 w-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500"
               />
-              <label htmlFor="trackStock" className="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label htmlFor="trackStock" className="text-sm font-medium text-gray-700 dark:text-gray-300">
                 Track Stock Inventory
               </label>
+              <HelpTooltip content="Enable stock tracking to limit availability and prevent overselling" />
             </div>
 
             {formData.trackStock && (
