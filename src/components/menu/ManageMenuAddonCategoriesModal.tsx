@@ -8,6 +8,10 @@ interface AddonItem {
   description: string | null;
   price: string | number;
   isActive: boolean;
+  inputType: string;
+  trackStock: boolean;
+  stockQty: number | null;
+  displayOrder: number;
 }
 
 interface AddonCategory {
@@ -350,27 +354,66 @@ export default function ManageMenuAddonCategoriesModal({
 
                               {/* Expanded Items Preview */}
                               {isExpanded && category.addonItems && category.addonItems.length > 0 && (
-                                <div className="mt-2 space-y-1 border-t border-gray-200 pt-2 dark:border-gray-700">
-                                  {category.addonItems.slice(0, 5).map((item) => (
-                                    <div
-                                      key={item.id}
-                                      className="flex items-center justify-between text-xs"
-                                    >
-                                      <span className="text-gray-700 dark:text-gray-300">{item.name}</span>
-                                      <span className={`font-medium ${
-                                        item.isActive 
-                                          ? 'text-success-600 dark:text-success-400' 
-                                          : 'text-error-600 dark:text-error-400'
-                                      }`}>
-                                        {item.isActive ? '✓' : '✗'}
-                                      </span>
-                                    </div>
-                                  ))}
-                                  {category.addonItems.length > 5 && (
-                                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                                      + {category.addonItems.length - 5} more items
-                                    </p>
-                                  )}
+                                <div className="mt-3 space-y-1.5 border-t border-gray-200 pt-3 dark:border-gray-700">
+                                  {category.addonItems.map((item) => {
+                                    const itemPrice = typeof item.price === 'string' ? parseFloat(item.price) : item.price;
+                                    const formattedPrice = itemPrice === 0 ? 'Free' : `A$ ${itemPrice.toFixed(2)}`;
+                                    
+                                    return (
+                                      <div
+                                        key={item.id}
+                                        className={`rounded-lg border border-gray-200 bg-white p-2.5 dark:border-gray-700 dark:bg-gray-800/50 ${
+                                          !item.isActive ? 'opacity-40' : ''
+                                        }`}
+                                      >
+                                        <div className="flex items-start justify-between gap-2">
+                                          <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2">
+                                              <span className="text-xs font-medium text-gray-800 dark:text-white/90">
+                                                {item.name}
+                                              </span>
+                                              <span className="text-xs font-semibold text-gray-900 dark:text-white">
+                                                {formattedPrice}
+                                              </span>
+                                            </div>
+                                            {item.description && (
+                                              <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400 line-clamp-1">
+                                                {item.description}
+                                              </p>
+                                            )}
+                                            <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-600 dark:text-gray-400">
+                                              <span className="flex items-center gap-1">
+                                                {item.inputType === 'QTY' ? (
+                                                  <>
+                                                    <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
+                                                    </svg>
+                                                    Quantity
+                                                  </>
+                                                ) : (
+                                                  <>
+                                                    <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                    </svg>
+                                                    Select
+                                                  </>
+                                                )}
+                                              </span>
+                                              {item.trackStock && (
+                                                <span className="flex items-center gap-1">
+                                                  <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                                                  </svg>
+                                                  Stock: {item.stockQty || 0}
+                                                </span>
+                                              )}
+                                              <span>Display: #{item.displayOrder}</span>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
                                 </div>
                               )}
                             </div>
@@ -396,6 +439,7 @@ export default function ManageMenuAddonCategoriesModal({
                     selectedCategories.map((selected, index) => {
                       const category = getCategoryInfo(selected.id);
                       if (!category) return null;
+                      const isExpanded = expandedCategory === selected.id;
 
                       return (
                         <div
@@ -406,7 +450,7 @@ export default function ManageMenuAddonCategoriesModal({
                           onDragLeave={handleDragLeave}
                           onDrop={(e) => handleDrop(e, index)}
                           onDragEnd={handleDragEnd}
-                          className={`cursor-move rounded-lg border bg-white p-3 transition-all dark:bg-gray-900 ${
+                          className={`rounded-lg border bg-white transition-all dark:bg-gray-900 ${
                             draggedItem === selected.id
                               ? "opacity-50"
                               : dragOverIndex === index
@@ -414,8 +458,8 @@ export default function ManageMenuAddonCategoriesModal({
                               : "border-gray-200 dark:border-gray-700"
                           }`}
                         >
-                          <div className="flex items-start gap-3">
-                            <div className="flex flex-col items-center text-gray-400">
+                          <div className="flex items-start gap-3 p-3">
+                            <div className="flex cursor-move flex-col items-center text-gray-400">
                               <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                               </svg>
@@ -424,15 +468,41 @@ export default function ManageMenuAddonCategoriesModal({
                               </span>
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="font-medium text-gray-800 dark:text-white/90">
-                                {category.name}
-                              </p>
+                              <div className="flex items-center justify-between">
+                                <button
+                                  onClick={() => toggleCategoryExpand(selected.id)}
+                                  className="flex-1 text-left"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <p className="font-medium text-gray-800 dark:text-white/90">
+                                      {category.name}
+                                    </p>
+                                    <svg
+                                      className={`h-4 w-4 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                                      fill="none"
+                                      stroke="currentColor"
+                                      viewBox="0 0 24 24"
+                                    >
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                  </div>
+                                </button>
+                                <button
+                                  onClick={() => handleToggleCategory(selected.id)}
+                                  className="ml-2 text-error-600 hover:text-error-700 dark:text-error-400"
+                                  title="Remove category"
+                                >
+                                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              </div>
                               {category.description && (
                                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 line-clamp-1">
                                   {category.description}
                                 </p>
                               )}
-                              <div className="mt-2 flex items-center gap-3">
+                              <div className="mt-2 flex flex-wrap items-center gap-3">
                                 <label className="flex items-center gap-2">
                                   <input
                                     type="checkbox"
@@ -445,18 +515,78 @@ export default function ManageMenuAddonCategoriesModal({
                                   </span>
                                 </label>
                                 <span className="text-xs text-gray-500 dark:text-gray-400">
+                                  Min: {category.minSelection} | Max: {category.maxSelection || '∞'}
+                                </span>
+                                <span className="text-xs font-medium text-brand-600 dark:text-brand-400">
                                   {category.addonItems?.length || 0} items
                                 </span>
                               </div>
+
+                              {/* Expanded addon items for selected categories */}
+                              {isExpanded && category.addonItems && category.addonItems.length > 0 && (
+                                <div className="mt-3 space-y-1.5 border-t border-gray-200 pt-3 dark:border-gray-700">
+                                  {category.addonItems.map((item) => {
+                                    const itemPrice = typeof item.price === 'string' ? parseFloat(item.price) : item.price;
+                                    const formattedPrice = itemPrice === 0 ? 'Free' : `A$ ${itemPrice.toFixed(2)}`;
+                                    
+                                    return (
+                                      <div
+                                        key={item.id}
+                                        className={`rounded-lg border border-gray-200 bg-white p-2.5 dark:border-gray-700 dark:bg-gray-800/50 ${
+                                          !item.isActive ? 'opacity-40' : ''
+                                        }`}
+                                      >
+                                        <div className="flex items-start justify-between gap-2">
+                                          <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2">
+                                              <span className="text-xs font-medium text-gray-800 dark:text-white/90">
+                                                {item.name}
+                                              </span>
+                                              <span className="text-xs font-semibold text-gray-900 dark:text-white">
+                                                {formattedPrice}
+                                              </span>
+                                            </div>
+                                            {item.description && (
+                                              <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400 line-clamp-1">
+                                                {item.description}
+                                              </p>
+                                            )}
+                                            <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-600 dark:text-gray-400">
+                                              <span className="flex items-center gap-1">
+                                                {item.inputType === 'QTY' ? (
+                                                  <>
+                                                    <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
+                                                    </svg>
+                                                    Quantity
+                                                  </>
+                                                ) : (
+                                                  <>
+                                                    <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                    </svg>
+                                                    Select
+                                                  </>
+                                                )}
+                                              </span>
+                                              {item.trackStock && (
+                                                <span className="flex items-center gap-1">
+                                                  <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                                                  </svg>
+                                                  Stock: {item.stockQty || 0}
+                                                </span>
+                                              )}
+                                              <span>Display: #{item.displayOrder}</span>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
                             </div>
-                            <button
-                              onClick={() => handleToggleCategory(selected.id)}
-                              className="text-error-600 hover:text-error-700 dark:text-error-400"
-                            >
-                              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                              </svg>
-                            </button>
                           </div>
                         </div>
                       );
