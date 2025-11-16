@@ -3,9 +3,14 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Image from "next/image";
+import dynamic from "next/dynamic";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import { useToast } from "@/hooks/useToast";
 import ToastContainer from "@/components/ui/ToastContainer";
+import { COUNTRIES, CURRENCIES, TIMEZONES } from "@/lib/constants/location";
+
+// Dynamically import map component to avoid SSR issues
+const MapLocationPicker = dynamic(() => import("@/components/maps/MapLocationPicker"), { ssr: false });
 
 interface MerchantFormData {
   name: string;
@@ -15,6 +20,11 @@ interface MerchantFormData {
   email: string;
   phoneNumber: string;
   logoUrl?: string;
+  country: string;
+  currency: string;
+  timezone: string;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 interface OpeningHour {
@@ -45,6 +55,11 @@ export default function EditMerchantPage() {
     email: "",
     phoneNumber: "",
     logoUrl: "",
+    country: "Australia",
+    currency: "AUD",
+    timezone: "Australia/Sydney",
+    latitude: null,
+    longitude: null,
   });
 
   const [openingHours, setOpeningHours] = useState<OpeningHour[]>([
@@ -89,6 +104,11 @@ export default function EditMerchantPage() {
           email: merchant.email || "",
           phoneNumber: merchant.phone || "",
           logoUrl: merchant.logoUrl || "",
+          country: merchant.country || "Australia",
+          currency: merchant.currency || "AUD",
+          timezone: merchant.timezone || "Australia/Sydney",
+          latitude: merchant.latitude ? parseFloat(merchant.latitude) : null,
+          longitude: merchant.longitude ? parseFloat(merchant.longitude) : null,
         });
 
         // Set opening hours if available
@@ -126,7 +146,7 @@ export default function EditMerchantPage() {
     }
   }, [merchantId, router, showError]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
@@ -237,7 +257,7 @@ export default function EditMerchantPage() {
       
       setTimeout(() => {
         router.push(`/admin/dashboard/merchants/${merchantId}`);
-      }, 1500);
+      }, 1000);
     } catch (err) {
       showError("Error", err instanceof Error ? err.message : "Failed to update merchant");
     } finally {
@@ -398,6 +418,93 @@ export default function EditMerchantPage() {
                 onChange={handleChange}
                 rows={3}
                 className="w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30"
+              />
+            </div>
+
+            {/* Location & Settings Section */}
+            <div className="border-t border-gray-200 pt-6 dark:border-gray-800">
+              <h4 className="mb-4 text-base font-semibold text-gray-800 dark:text-white/90">
+                Location & Regional Settings
+              </h4>
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Country <span className="text-error-500">*</span>
+                  </label>
+                  <select
+                    name="country"
+                    value={formData.country}
+                    onChange={handleChange}
+                    required
+                    className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 text-sm text-gray-800 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90"
+                  >
+                    {COUNTRIES.map((country) => (
+                      <option key={country.value} value={country.value}>
+                        {country.flag} {country.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Currency <span className="text-error-500">*</span>
+                  </label>
+                  <select
+                    name="currency"
+                    value={formData.currency}
+                    onChange={handleChange}
+                    required
+                    className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 text-sm text-gray-800 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90"
+                  >
+                    {CURRENCIES.map((currency) => (
+                      <option key={currency.value} value={currency.value}>
+                        {currency.symbol} {currency.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Timezone <span className="text-error-500">*</span>
+                  </label>
+                  <select
+                    name="timezone"
+                    value={formData.timezone}
+                    onChange={handleChange}
+                    required
+                    className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 text-sm text-gray-800 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90"
+                  >
+                    {TIMEZONES.map((tz) => (
+                      <option key={tz.value} value={tz.value}>
+                        {tz.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Map Location Picker Section */}
+            <div className="border-t border-gray-200 pt-6 dark:border-gray-800">
+              <h4 className="mb-4 text-base font-semibold text-gray-800 dark:text-white/90">
+                Map Location
+              </h4>
+              <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">
+                Set the exact location of your merchant on the map. This will be displayed to customers and can be used for navigation.
+              </p>
+              <MapLocationPicker
+                latitude={formData.latitude}
+                longitude={formData.longitude}
+                onLocationChange={(lat, lng) => {
+                  setFormData(prev => ({
+                    ...prev,
+                    latitude: lat,
+                    longitude: lng,
+                  }));
+                }}
+                height="450px"
               />
             </div>
 

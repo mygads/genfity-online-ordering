@@ -3,8 +3,12 @@
 import React, { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Image from "next/image";
+import dynamic from "next/dynamic";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import ComponentCard from "@/components/common/ComponentCard";
+
+// Dynamically import map component
+const MapContent = dynamic(() => import("@/components/maps/MapContent"), { ssr: false });
 
 interface MerchantDetails {
   id: string;
@@ -17,6 +21,10 @@ interface MerchantDetails {
   logoUrl: string | null;
   isActive: boolean;
   currency: string;
+  country: string;
+  timezone: string;
+  latitude: string | null;
+  longitude: string | null;
   createdAt: string;
   openingHours: Array<{
     dayOfWeek: number;
@@ -240,6 +248,20 @@ export default function MerchantDetailsPage() {
               <p className="text-gray-800 dark:text-white/90">{merchant.currency}</p>
             </div>
 
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-500 dark:text-gray-400">
+                Country
+              </label>
+              <p className="text-gray-800 dark:text-white/90">{merchant.country}</p>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-500 dark:text-gray-400">
+                Timezone
+              </label>
+              <p className="text-gray-800 dark:text-white/90">{merchant.timezone}</p>
+            </div>
+
             <div className="md:col-span-2">
               <label className="mb-2 block text-sm font-medium text-gray-500 dark:text-gray-400">
                 Address
@@ -272,6 +294,45 @@ export default function MerchantDetailsPage() {
             </button>
           </div>
         </div>
+
+        {/* Map Location */}
+        {merchant.latitude && merchant.longitude && (
+          <div className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-white/3">
+            <h3 className="mb-5 text-lg font-semibold text-gray-900 dark:text-white">
+              Store Location
+            </h3>
+            <div className="space-y-3">
+              <div className="pointer-events-none">
+                <MapContent
+                  latitude={parseFloat(merchant.latitude)}
+                  longitude={parseFloat(merchant.longitude)}
+                  onLocationChange={() => {}} // Read-only
+                  height="300px"
+                />
+              </div>
+              <div className="flex items-center justify-between rounded-lg bg-gray-50 p-3 dark:bg-gray-900/50">
+                <div>
+                  <p className="text-xs font-medium text-gray-500 dark:text-gray-400">GPS Coordinates</p>
+                  <p className="mt-1 text-sm text-gray-900 dark:text-white">
+                    {parseFloat(merchant.latitude).toFixed(6)}, {parseFloat(merchant.longitude).toFixed(6)}
+                  </p>
+                </div>
+                <a
+                  href={`https://www.google.com/maps?q=${merchant.latitude},${merchant.longitude}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex h-9 items-center gap-2 rounded-lg bg-brand-500 px-3 text-sm font-medium text-white hover:bg-brand-600"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  View in Maps
+                </a>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Opening Hours */}
         <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] lg:p-6">

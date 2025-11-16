@@ -2,7 +2,12 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
+import { COUNTRIES, CURRENCIES, TIMEZONES } from "@/lib/constants/location";
+
+// Dynamically import map component
+const MapLocationPicker = dynamic(() => import("@/components/maps/MapLocationPicker"), { ssr: false });
 
 interface MerchantFormData {
   name: string;
@@ -14,6 +19,11 @@ interface MerchantFormData {
   ownerName: string;
   ownerEmail: string;
   ownerPassword: string;
+  country: string;
+  currency: string;
+  timezone: string;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 export default function CreateMerchantPage() {
@@ -33,9 +43,14 @@ export default function CreateMerchantPage() {
     ownerName: "",
     ownerEmail: "",
     ownerPassword: "",
+    country: "Australia",
+    currency: "AUD",
+    timezone: "Australia/Sydney",
+    latitude: null,
+    longitude: null,
   });
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
     
     if (type === "checkbox") {
@@ -221,6 +236,93 @@ export default function CreateMerchantPage() {
                   placeholder="restaurant@example.com"
                 />
               </div>
+            </div>
+
+            {/* Location & Settings Section */}
+            <div className="border-t border-gray-200 pt-6 dark:border-gray-800">
+              <h4 className="mb-4 text-base font-semibold text-gray-800 dark:text-white/90">
+                Location & Regional Settings
+              </h4>
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Country <span className="text-error-500">*</span>
+                  </label>
+                  <select
+                    name="country"
+                    value={formData.country}
+                    onChange={handleChange}
+                    required
+                    className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 text-sm text-gray-800 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90"
+                  >
+                    {COUNTRIES.map((country) => (
+                      <option key={country.value} value={country.value}>
+                        {country.flag} {country.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Currency <span className="text-error-500">*</span>
+                  </label>
+                  <select
+                    name="currency"
+                    value={formData.currency}
+                    onChange={handleChange}
+                    required
+                    className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 text-sm text-gray-800 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90"
+                  >
+                    {CURRENCIES.map((currency) => (
+                      <option key={currency.value} value={currency.value}>
+                        {currency.symbol} {currency.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Timezone <span className="text-error-500">*</span>
+                  </label>
+                  <select
+                    name="timezone"
+                    value={formData.timezone}
+                    onChange={handleChange}
+                    required
+                    className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 text-sm text-gray-800 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90"
+                  >
+                    {TIMEZONES.map((tz) => (
+                      <option key={tz.value} value={tz.value}>
+                        {tz.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Map Location Picker Section */}
+            <div className="border-t border-gray-200 pt-6 dark:border-gray-800">
+              <h4 className="mb-4 text-base font-semibold text-gray-800 dark:text-white/90">
+                Store Location on Map
+              </h4>
+              <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">
+                Set the merchant's exact location. This helps customers find and navigate to the store.
+              </p>
+              <MapLocationPicker
+                latitude={formData.latitude}
+                longitude={formData.longitude}
+                onLocationChange={(lat, lng) => {
+                  setFormData(prev => ({
+                    ...prev,
+                    latitude: lat,
+                    longitude: lng,
+                  }));
+                }}
+                height="450px"
+              />
             </div>
 
             {/* Owner Information */}

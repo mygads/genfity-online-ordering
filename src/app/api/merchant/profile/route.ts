@@ -109,6 +109,11 @@ async function handlePut(req: NextRequest, authContext: AuthContext) {
         email: body.email,
         taxRate: body.taxRate,
         taxIncluded: body.taxIncluded,
+        country: body.country,
+        currency: body.currency,
+        timezone: body.timezone,
+        latitude: body.latitude,
+        longitude: body.longitude,
       }
     );
 

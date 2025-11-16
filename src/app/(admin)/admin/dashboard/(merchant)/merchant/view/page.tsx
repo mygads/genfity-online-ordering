@@ -4,9 +4,13 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import { useAuth } from "@/hooks/useAuth";
 import MerchantQRCodeModal from "@/components/merchants/MerchantQRCodeModal";
+
+// Dynamically import map component
+const MapContent = dynamic(() => import("@/components/maps/MapContent"), { ssr: false });
 
 interface MerchantData {
   id: string;
@@ -19,6 +23,11 @@ interface MerchantData {
   email: string;
   phone: string;
   description: string;
+  country: string;
+  currency: string;
+  timezone: string;
+  latitude: string | null;
+  longitude: string | null;
   owners: Array<{
     id: string;
     name: string;
@@ -123,6 +132,11 @@ export default function ViewMerchantPage() {
           email: merchantData.email,
           phone: merchantData.phone,
           description: merchantData.description,
+          country: merchantData.country || "Australia",
+          currency: merchantData.currency || "AUD",
+          timezone: merchantData.timezone || "Australia/Sydney",
+          latitude: merchantData.latitude || null,
+          longitude: merchantData.longitude || null,
           openingHours: merchantData.openingHours || [],
           owners,
           staff,
@@ -370,71 +384,103 @@ export default function ViewMerchantPage() {
         </div>
       </div>
 
-      {/* Content Grid */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      {/* Content Sections - Single Column Clean Layout */}
+      <div className="space-y-6">
         {/* Contact Information */}
         <div className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-white/3">
-          <h2 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">
+          <h2 className="mb-5 text-lg font-semibold text-gray-900 dark:text-white">
             Contact Information
           </h2>
-          <div className="space-y-4">
-            <div className="flex items-start gap-3">
-              <div className="mt-0.5 rounded-lg bg-brand-100 p-2 dark:bg-brand-900/20">
-                <svg className="h-5 w-5 text-brand-600 dark:text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
-              </div>
-              <div className="flex-1">
-                <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Email</p>
-                <p className="mt-1 text-sm text-gray-900 dark:text-white">{merchant.email}</p>
-              </div>
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Email</p>
+              <p className="text-sm text-gray-900 dark:text-white">{merchant.email}</p>
             </div>
 
-            <div className="flex items-start gap-3">
-              <div className="mt-0.5 rounded-lg bg-brand-100 p-2 dark:bg-brand-900/20">
-                <svg className="h-5 w-5 text-brand-600 dark:text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                </svg>
-              </div>
-              <div className="flex-1">
-                <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Phone</p>
-                <p className="mt-1 text-sm text-gray-900 dark:text-white">{merchant.phone}</p>
-              </div>
+            <div>
+              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Phone</p>
+              <p className="text-sm text-gray-900 dark:text-white">{merchant.phone}</p>
             </div>
 
-            <div className="flex items-start gap-3">
-              <div className="mt-0.5 rounded-lg bg-brand-100 p-2 dark:bg-brand-900/20">
-                <svg className="h-5 w-5 text-brand-600 dark:text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-              </div>
-              <div className="flex-1">
-                <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Address</p>
-                <p className="mt-1 text-sm text-gray-900 dark:text-white">{merchant.address}</p>
-              </div>
+            <div>
+              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Country</p>
+              <p className="text-sm text-gray-900 dark:text-white">{merchant.country}</p>
+            </div>
+
+            <div>
+              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Currency</p>
+              <p className="text-sm text-gray-900 dark:text-white">{merchant.currency}</p>
+            </div>
+
+            <div>
+              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Timezone</p>
+              <p className="text-sm text-gray-900 dark:text-white">{merchant.timezone}</p>
+            </div>
+
+            <div className="md:col-span-2 lg:col-span-3">
+              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Address</p>
+              <p className="text-sm text-gray-900 dark:text-white">{merchant.address}</p>
             </div>
           </div>
         </div>
 
+        {/* Map Location */}
+        {merchant.latitude && merchant.longitude && (
+          <div className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-white/3">
+            <h2 className="mb-5 text-lg font-semibold text-gray-900 dark:text-white">
+              Store Location
+            </h2>
+            <div className="space-y-3">
+              <div className="pointer-events-none">
+                <MapContent
+                  latitude={parseFloat(merchant.latitude)}
+                  longitude={parseFloat(merchant.longitude)}
+                  onLocationChange={() => {}} // Read-only
+                  height="300px"
+                />
+              </div>
+              <div className="flex items-center justify-between rounded-lg bg-gray-50 p-3 dark:bg-gray-900/50">
+                <div>
+                  <p className="text-xs font-medium text-gray-500 dark:text-gray-400">GPS Coordinates</p>
+                  <p className="mt-1 text-sm text-gray-900 dark:text-white">
+                    {parseFloat(merchant.latitude).toFixed(6)}, {parseFloat(merchant.longitude).toFixed(6)}
+                  </p>
+                </div>
+                <a
+                  href={`https://www.google.com/maps?q=${merchant.latitude},${merchant.longitude}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex h-9 items-center gap-2 rounded-lg bg-brand-500 px-3 text-sm font-medium text-white hover:bg-brand-600"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  View in Maps
+                </a>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Opening Hours */}
         <div className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-white/3">
-          <h2 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">
+          <h2 className="mb-5 text-lg font-semibold text-gray-900 dark:text-white">
             Opening Hours
           </h2>
           {merchant.openingHours && merchant.openingHours.length > 0 ? (
-            <div className="space-y-2.5">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {merchant.openingHours.map((hour) => (
-                <div key={hour.dayOfWeek} className="flex items-center justify-between rounded-lg bg-gray-50 px-4 py-3 dark:bg-gray-900/50">
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                <div key={hour.dayOfWeek} className="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+                  <p className="mb-1 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
                     {DAYS[hour.dayOfWeek]}
-                  </span>
+                  </p>
                   {hour.isClosed ? (
-                    <span className="text-sm text-gray-400 dark:text-gray-500">Closed</span>
+                    <p className="text-sm text-gray-400 dark:text-gray-500">Closed</p>
                   ) : (
-                    <span className="text-sm font-medium text-gray-900 dark:text-white">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">
                       {hour.openTime} - {hour.closeTime}
-                    </span>
+                    </p>
                   )}
                 </div>
               ))}
@@ -460,50 +506,58 @@ export default function ViewMerchantPage() {
           )}
         </div>
 
-        {/* Owners */}
+        {/* Team Section - Owners & Staff Combined */}
         <div className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-white/3">
-          <h2 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">
-            Owners ({merchant.owners.length})
+          <h2 className="mb-5 text-lg font-semibold text-gray-900 dark:text-white">
+            Team Members
           </h2>
-          <div className="space-y-3">
-            {merchant.owners.length > 0 ? (
-              merchant.owners.map((owner) => (
-                <div key={owner.id} className="flex items-center gap-3 rounded-lg bg-gray-50 p-3 dark:bg-gray-900/50">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-100 text-sm font-semibold text-brand-600 dark:bg-brand-900/20 dark:text-brand-400">
-                    {owner.name.charAt(0).toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="truncate text-sm font-medium text-gray-900 dark:text-white">{owner.name}</p>
-                    <p className="truncate text-xs text-gray-500 dark:text-gray-400">{owner.email}</p>
-                  </div>
+          <div className="space-y-4">
+            {/* Owners */}
+            {merchant.owners.length > 0 && (
+              <div>
+                <h3 className="mb-3 text-sm font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  Owners ({merchant.owners.length})
+                </h3>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {merchant.owners.map((owner) => (
+                    <div key={owner.id} className="flex items-center gap-3 rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-100 text-sm font-semibold text-brand-600 dark:bg-brand-900/20 dark:text-brand-400">
+                        {owner.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="truncate text-sm font-medium text-gray-900 dark:text-white">{owner.name}</p>
+                        <p className="truncate text-xs text-gray-500 dark:text-gray-400">{owner.email}</p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))
-            ) : (
-              <p className="text-sm text-gray-500 dark:text-gray-400">No owners assigned</p>
+              </div>
             )}
-          </div>
-        </div>
 
-        {/* Staff */}
-        <div className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-white/3">
-          <h2 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">
-            Staff ({merchant.staff.length})
-          </h2>
-          <div className="space-y-3">
-            {merchant.staff.length > 0 ? (
-              merchant.staff.map((staffMember) => (
-                <div key={staffMember.id} className="flex items-center gap-3 rounded-lg bg-gray-50 p-3 dark:bg-gray-900/50">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-100 text-sm font-semibold text-gray-600 dark:bg-gray-800 dark:text-gray-400">
-                    {staffMember.name.charAt(0).toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="truncate text-sm font-medium text-gray-900 dark:text-white">{staffMember.name}</p>
-                    <p className="truncate text-xs text-gray-500 dark:text-gray-400">{staffMember.email}</p>
-                  </div>
+            {/* Staff */}
+            {merchant.staff.length > 0 && (
+              <div>
+                <h3 className="mb-3 text-sm font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  Staff ({merchant.staff.length})
+                </h3>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {merchant.staff.map((staffMember) => (
+                    <div key={staffMember.id} className="flex items-center gap-3 rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-100 text-sm font-semibold text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+                        {staffMember.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="truncate text-sm font-medium text-gray-900 dark:text-white">{staffMember.name}</p>
+                        <p className="truncate text-xs text-gray-500 dark:text-gray-400">{staffMember.email}</p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))
-            ) : (
-              <p className="text-sm text-gray-500 dark:text-gray-400">No staff assigned</p>
+              </div>
+            )}
+
+            {merchant.owners.length === 0 && merchant.staff.length === 0 && (
+              <p className="text-sm text-gray-500 dark:text-gray-400">No team members assigned</p>
             )}
           </div>
         </div>

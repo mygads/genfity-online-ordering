@@ -27,6 +27,13 @@ export interface CreateMerchantInput {
   phoneNumber?: string;
   email?: string;
   
+  // Location settings
+  country?: string;
+  currency?: string;
+  timezone?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  
   // Tax settings
   taxRate?: number;
   taxIncluded?: boolean;
@@ -50,6 +57,11 @@ export interface UpdateMerchantInput {
   taxRate?: number;
   taxIncluded?: boolean;
   isActive?: boolean;
+  country?: string;
+  currency?: string;
+  timezone?: string;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 /**
@@ -159,6 +171,11 @@ class MerchantService {
         address: input.address,
         phone: input.phoneNumber, // Map phoneNumber to phone (Prisma field)
         email: input.email || input.ownerEmail, // Use merchant email or owner email as fallback
+        country: input.country || 'Australia',
+        currency: input.currency || 'AUD',
+        timezone: input.timezone || 'Australia/Sydney',
+        latitude: input.latitude || null,
+        longitude: input.longitude || null,
         enableTax: (input.taxRate !== undefined && input.taxRate > 0), // Map to enableTax
         taxPercentage: input.taxRate !== undefined ? input.taxRate : null, // Map to taxPercentage
         isActive: true,
@@ -220,6 +237,11 @@ class MerchantService {
       updateData.taxPercentage = input.taxRate;
     }
     if (input.isActive !== undefined) updateData.isActive = input.isActive;
+    if (input.country !== undefined) updateData.country = input.country;
+    if (input.currency !== undefined) updateData.currency = input.currency;
+    if (input.timezone !== undefined) updateData.timezone = input.timezone;
+    if (input.latitude !== undefined) updateData.latitude = input.latitude;
+    if (input.longitude !== undefined) updateData.longitude = input.longitude;
 
     // Update merchant
     return await merchantRepository.update(merchantId, updateData);

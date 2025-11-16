@@ -3,9 +3,14 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import dynamic from "next/dynamic";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import { useToast } from "@/hooks/useToast";
 import ToastContainer from "@/components/ui/ToastContainer";
+import { COUNTRIES, CURRENCIES, TIMEZONES } from "@/lib/constants/location";
+
+// Dynamically import map component
+const MapLocationPicker = dynamic(() => import("@/components/maps/MapLocationPicker"), { ssr: false });
 
 interface MerchantFormData {
   name: string;
@@ -15,6 +20,11 @@ interface MerchantFormData {
   email: string;
   phoneNumber: string;
   logoUrl?: string;
+  country: string;
+  currency: string;
+  timezone: string;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 interface OpeningHour {
@@ -47,6 +57,11 @@ export default function EditMerchantPage() {
     email: "",
     phoneNumber: "",
     logoUrl: "",
+    country: "Australia",
+    currency: "AUD",
+    timezone: "Australia/Sydney",
+    latitude: null,
+    longitude: null,
   });
 
   const [openingHours, setOpeningHours] = useState<OpeningHour[]>([
@@ -94,6 +109,11 @@ export default function EditMerchantPage() {
         email: merchant.email || "",
         phoneNumber: merchant.phone || "",
         logoUrl: merchant.logoUrl || "",
+        country: merchant.country || "Australia",
+        currency: merchant.currency || "AUD",
+        timezone: merchant.timezone || "Australia/Sydney",
+        latitude: merchant.latitude ? parseFloat(merchant.latitude) : null,
+        longitude: merchant.longitude ? parseFloat(merchant.longitude) : null,
       });
 
       // Set opening hours if available
@@ -126,7 +146,7 @@ export default function EditMerchantPage() {
     }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
@@ -236,8 +256,8 @@ export default function EditMerchantPage() {
       showSuccess("Success", "Merchant information updated successfully!");
       
       setTimeout(() => {
-        router.push("/admin/dashboard");
-      }, 1500);
+        router.push("/admin/dashboard/merchant/view");
+      }, 1000);
     } catch (err) {
       showError("Error", err instanceof Error ? err.message : "Failed to update merchant");
     } finally {
@@ -260,216 +280,303 @@ export default function EditMerchantPage() {
   return (
     <div>
       <ToastContainer toasts={toasts} />
-      <PageBreadcrumb pageTitle="Edit Merchant Information" />
+      <PageBreadcrumb pageTitle="Edit Merchant" />
 
-      <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/3 lg:p-6">
-        <div className="mb-5">
-          <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">
-            Update Your Merchant Information
-          </h3>
+      <div className="mt-6 rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-white/3">
+        <div className="mb-6 border-b border-gray-200 pb-5 dark:border-gray-800">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+            Merchant Information
+          </h2>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Manage your store details and settings
+            Update your store details and regional settings
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Logo Upload Section */}
-          <div className="border-b border-gray-200 pb-6 dark:border-gray-800">
-            <label className="mb-3 block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Store Logo
-            </label>
-            <div className="flex items-center gap-6">
-              <div className="relative h-24 w-24 overflow-hidden rounded-xl border-4 border-gray-200 dark:border-gray-700">
-                {formData.logoUrl ? (
-                  <Image
-                    src={formData.logoUrl}
-                    alt={formData.name}
-                    fill
-                    className="object-cover"
+          {/* Basic Information */}
+          <div className="space-y-5">
+            {/* Logo Upload */}
+            <div>
+              <label className="mb-3 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Store Logo
+              </label>
+              <div className="flex items-center gap-5">
+                <div className="relative h-20 w-20 overflow-hidden rounded-lg border-2 border-gray-200 dark:border-gray-700">
+                  {formData.logoUrl ? (
+                    <Image
+                      src={formData.logoUrl}
+                      alt={formData.name}
+                      fill
+                      className="object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center bg-brand-100 text-xl font-bold text-brand-600 dark:bg-brand-900/20 dark:text-brand-400">
+                      {formData.name.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/jpg,image/png,image/webp"
+                    onChange={handleLogoUpload}
+                    className="hidden"
                   />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center bg-brand-100 text-2xl font-bold text-brand-600 dark:bg-brand-900/20 dark:text-brand-400">
-                    {formData.name.charAt(0).toUpperCase()}
-                  </div>
-                )}
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                    className="inline-flex h-9 items-center rounded-lg bg-gray-100 px-4 text-sm font-medium text-gray-700 hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                  >
+                    {uploading ? 'Uploading...' : 'Change Logo'}
+                  </button>
+                  <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                    JPG, PNG or WebP. Max 5MB
+                  </p>
+                </div>
               </div>
-              <div className="flex-1">
+            </div>
+
+            {/* Merchant Code */}
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Merchant Code
+              </label>
+              <input
+                type="text"
+                name="code"
+                value={formData.code}
+                disabled
+                className="h-10 w-full rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-500 dark:border-gray-800 dark:bg-gray-900/50 dark:text-gray-400"
+              />
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Cannot be changed</p>
+            </div>
+
+            {/* Store Name */}
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Store Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                name="name"
+                value={formData.name}
+                onChange={handleChange}
+                required
+                className="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-gray-800 dark:bg-gray-900 dark:text-white"
+              />
+            </div>
+
+            {/* Email & Phone Grid */}
+            <div className="grid gap-5 md:grid-cols-2">
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Email <span className="text-red-500">*</span>
+                </label>
                 <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/jpeg,image/jpg,image/png,image/webp"
-                  onChange={handleLogoUpload}
-                  className="hidden"
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  required
+                  className="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-gray-800 dark:bg-gray-900 dark:text-white"
                 />
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploading}
-                  className="h-10 rounded-lg bg-gray-100 px-4 text-sm font-medium text-gray-700 hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Phone Number <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="tel"
+                  name="phoneNumber"
+                  value={formData.phoneNumber}
+                  onChange={handleChange}
+                  required
+                  className="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-gray-800 dark:bg-gray-900 dark:text-white"
+                />
+              </div>
+            </div>
+
+            {/* Address */}
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Address <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                name="address"
+                value={formData.address}
+                onChange={handleChange}
+                required
+                rows={2}
+                className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-gray-800 dark:bg-gray-900 dark:text-white"
+              />
+            </div>
+
+            {/* Description */}
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Description
+              </label>
+              <textarea
+                name="description"
+                value={formData.description}
+                onChange={handleChange}
+                rows={2}
+                className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-gray-800 dark:bg-gray-900 dark:text-white"
+              />
+            </div>
+          </div>
+
+          {/* Regional Settings */}
+          <div className="space-y-5 border-t border-gray-200 pt-6 dark:border-gray-800">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white">
+              Regional Settings
+            </h3>
+            <div className="grid gap-5 md:grid-cols-3">
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Country <span className="text-red-500">*</span>
+                </label>
+                <select
+                  name="country"
+                  value={formData.country}
+                  onChange={handleChange}
+                  required
+                  className="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-gray-800 dark:bg-gray-900 dark:text-white"
                 >
-                  {uploading ? 'Uploading...' : 'Change Logo'}
-                </button>
-                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                  Recommended: Square image, JPEG/PNG/WebP, max 5MB
-                </p>
+                  {COUNTRIES.map((country) => (
+                    <option key={country.value} value={country.value}>
+                      {country.flag} {country.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Currency <span className="text-red-500">*</span>
+                </label>
+                <select
+                  name="currency"
+                  value={formData.currency}
+                  onChange={handleChange}
+                  required
+                  className="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-gray-800 dark:bg-gray-900 dark:text-white"
+                >
+                  {CURRENCIES.map((currency) => (
+                    <option key={currency.value} value={currency.value}>
+                      {currency.symbol} {currency.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Timezone <span className="text-red-500">*</span>
+                </label>
+                <select
+                  name="timezone"
+                  value={formData.timezone}
+                  onChange={handleChange}
+                  required
+                  className="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-gray-800 dark:bg-gray-900 dark:text-white"
+                >
+                  {TIMEZONES.map((tz) => (
+                    <option key={tz.value} value={tz.value}>
+                      {tz.label}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
           </div>
 
-          <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Merchant Code <span className="text-error-500">*</span>
-            </label>
-            <input
-              type="text"
-              name="code"
-              value={formData.code}
-              onChange={handleChange}
-              required
-              disabled
-              className="h-11 w-full rounded-lg border border-gray-200 bg-gray-50 px-4 text-sm text-gray-500 cursor-not-allowed dark:border-gray-800 dark:bg-gray-800 dark:text-gray-400"
-            />
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Merchant code cannot be changed</p>
-          </div>
-
-          <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Store Name <span className="text-error-500">*</span>
-            </label>
-            <input
-              type="text"
-              name="name"
-              value={formData.name}
-              onChange={handleChange}
-              required
-              className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30"
+          {/* Store Location */}
+          <div className="space-y-4 border-t border-gray-200 pt-6 dark:border-gray-800">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white">
+              Store Location
+            </h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Set your store's location for customers to find and navigate to your store.
+            </p>
+            <MapLocationPicker
+              latitude={formData.latitude}
+              longitude={formData.longitude}
+              onLocationChange={(lat, lng) => {
+                setFormData(prev => ({
+                  ...prev,
+                  latitude: lat,
+                  longitude: lng,
+                }));
+              }}
+              height="350px"
             />
           </div>
 
-          <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Email <span className="text-error-500">*</span>
-            </label>
-            <input
-              type="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              required
-              className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30"
-            />
-          </div>
-
-          <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Phone Number <span className="text-error-500">*</span>
-            </label>
-            <input
-              type="tel"
-              name="phoneNumber"
-              value={formData.phoneNumber}
-              onChange={handleChange}
-              required
-              className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30"
-            />
-          </div>
-
-          <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Address <span className="text-error-500">*</span>
-            </label>
-            <textarea
-              name="address"
-              value={formData.address}
-              onChange={handleChange}
-              required
-              rows={3}
-              className="w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30"
-            />
-          </div>
-
-          <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Description
-            </label>
-            <textarea
-              name="description"
-              value={formData.description}
-              onChange={handleChange}
-              rows={3}
-              className="w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30"
-            />
-          </div>
-
-          {/* Opening Hours Section */}
-          <div className="border-t border-gray-200 pt-6 dark:border-gray-800">
-            <h4 className="mb-4 text-base font-semibold text-gray-800 dark:text-white/90">
+          {/* Opening Hours */}
+          <div className="space-y-4 border-t border-gray-200 pt-6 dark:border-gray-800">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white">
               Opening Hours
-            </h4>
-            <div className="space-y-3">
+            </h3>
+            <div className="space-y-2">
               {openingHours.map((hour) => (
                 <div
                   key={hour.dayOfWeek}
-                  className="flex items-center gap-4 rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900/50"
+                  className="flex items-center gap-4 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900/50"
                 >
-                  {/* Day Name */}
-                  <div className="w-28 font-medium text-gray-800 dark:text-white/90">
+                  <div className="w-24 text-sm font-medium text-gray-900 dark:text-white">
                     {DAYS[hour.dayOfWeek]}
                   </div>
 
-                  {/* Is Closed Checkbox */}
                   <label className="flex items-center gap-2">
                     <input
                       type="checkbox"
                       checked={hour.isClosed}
                       onChange={(e) => handleOpeningHourChange(hour.dayOfWeek, 'isClosed', e.target.checked)}
-                      className="h-4 w-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500 dark:border-gray-700"
+                      className="h-4 w-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500"
                     />
-                    <span className="text-sm text-gray-600 dark:text-gray-400">Closed</span>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">Closed</span>
                   </label>
 
-                  {/* Time Inputs */}
                   {!hour.isClosed && (
-                    <>
-                      <div className="flex items-center gap-2">
-                        <label className="text-sm text-gray-600 dark:text-gray-400">Open:</label>
-                        <input
-                          type="time"
-                          value={hour.openTime}
-                          onChange={(e) => handleOpeningHourChange(hour.dayOfWeek, 'openTime', e.target.value)}
-                          className="h-9 rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-800 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90"
-                        />
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <label className="text-sm text-gray-600 dark:text-gray-400">Close:</label>
-                        <input
-                          type="time"
-                          value={hour.closeTime}
-                          onChange={(e) => handleOpeningHourChange(hour.dayOfWeek, 'closeTime', e.target.value)}
-                          className="h-9 rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-800 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90"
-                        />
-                      </div>
-                    </>
+                    <div className="flex flex-1 items-center gap-3">
+                      <input
+                        type="time"
+                        value={hour.openTime}
+                        onChange={(e) => handleOpeningHourChange(hour.dayOfWeek, 'openTime', e.target.value)}
+                        className="h-9 rounded-lg border border-gray-200 bg-white px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-gray-800 dark:bg-gray-900 dark:text-white"
+                      />
+                      <span className="text-gray-400">—</span>
+                      <input
+                        type="time"
+                        value={hour.closeTime}
+                        onChange={(e) => handleOpeningHourChange(hour.dayOfWeek, 'closeTime', e.target.value)}
+                        className="h-9 rounded-lg border border-gray-200 bg-white px-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-gray-800 dark:bg-gray-900 dark:text-white"
+                      />
+                    </div>
                   )}
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-4 border-t border-gray-200 pt-6 dark:border-gray-800">
+          <div className="flex items-center justify-end gap-3 border-t border-gray-200 pt-6 dark:border-gray-800">
             <button
               type="button"
-              onClick={() => router.back()}
-              className="h-11 rounded-lg border border-gray-200 bg-white px-6 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-800 dark:bg-white/3 dark:text-gray-300 dark:hover:bg-white/5"
+              onClick={() => router.push("/admin/dashboard/merchant/view")}
+              className="h-10 rounded-lg border border-gray-200 bg-white px-5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-800 dark:bg-white/3 dark:text-gray-300 dark:hover:bg-white/5"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="h-11 rounded-lg bg-brand-500 px-6 text-sm font-medium text-white hover:bg-brand-600 focus:outline-none focus:ring-3 focus:ring-brand-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+              className="h-10 rounded-lg bg-brand-500 px-5 text-sm font-medium text-white hover:bg-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-500/20 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {submitting ? "Updating..." : "Save Changes"}
+              {submitting ? "Saving..." : "Save Changes"}
             </button>
           </div>
         </form>
