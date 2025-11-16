@@ -144,6 +144,9 @@ export default async function AdminDashboardPage() {
       todayOrders,
       pendingOrders,
       recentOrders,
+      topSellingItems,
+      orderStatusBreakdown,
+      lowStockItems,
     ] = await Promise.all([
       prisma.menu.count({ where: { merchantId } }),
       prisma.menu.count({ where: { merchantId, isActive: true } }),
@@ -167,6 +170,50 @@ export default async function AdminDashboardPage() {
         orderBy: { createdAt: 'desc' },
         include: {
           orderItems: { include: { menu: true } },
+        },
+      }),
+      // Top Selling Items (last 30 days)
+      prisma.$queryRaw<Array<{
+        menu_id: bigint;
+        menu_name: string;
+        total_quantity: bigint;
+        total_revenue: number;
+      }>>`
+        SELECT 
+          oi.menu_id,
+          oi.menu_name,
+          SUM(oi.quantity)::BIGINT as total_quantity,
+          SUM(oi.subtotal)::FLOAT as total_revenue
+        FROM order_items oi
+        JOIN orders o ON oi.order_id = o.id
+        WHERE o.merchant_id = ${merchantId}
+          AND o.created_at >= NOW() - INTERVAL '30 days'
+          AND o.status != 'CANCELLED'
+        GROUP BY oi.menu_id, oi.menu_name
+        ORDER BY total_quantity DESC
+        LIMIT 5
+      `,
+      // Order Status Breakdown
+      prisma.order.groupBy({
+        by: ['status'],
+        where: { merchantId },
+        _count: { id: true },
+      }),
+      // Low Stock Items
+      prisma.menu.findMany({
+        where: {
+          merchantId,
+          trackStock: true,
+          isActive: true,
+          stockQty: { lte: 10 },
+        },
+        take: 5,
+        orderBy: { stockQty: 'asc' },
+        select: {
+          id: true,
+          name: true,
+          stockQty: true,
+          price: true,
         },
       }),
     ]);
@@ -203,6 +250,17 @@ export default async function AdminDashboardPage() {
             todayRevenue: todayRevenue._sum.totalAmount?.toNumber() || 0,
           }}
           recentOrders={recentOrders}
+          topSellingItems={topSellingItems.map(item => ({
+            menuId: item.menu_id,
+            menuName: item.menu_name,
+            totalQuantity: Number(item.total_quantity),
+            totalRevenue: item.total_revenue,
+          }))}
+          orderStatusBreakdown={orderStatusBreakdown.map(item => ({
+            status: item.status,
+            count: item._count.id,
+          }))}
+          lowStockItems={lowStockItems}
         />
       );
     }

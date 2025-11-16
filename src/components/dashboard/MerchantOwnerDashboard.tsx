@@ -52,6 +52,22 @@ interface MerchantOwnerDashboardProps {
       orderItems: Array<OrderItem & { menu: Menu }>;
     }
   >;
+  topSellingItems: Array<{
+    menuId: bigint;
+    menuName: string;
+    totalQuantity: number;
+    totalRevenue: number;
+  }>;
+  orderStatusBreakdown: Array<{
+    status: string;
+    count: number;
+  }>;
+  lowStockItems: Array<{
+    id: bigint;
+    name: string;
+    stockQty: number | null;
+    price: any;
+  }>;
 }
 
 /**
@@ -69,6 +85,9 @@ export default function MerchantOwnerDashboard({
   merchant,
   stats,
   recentOrders,
+  topSellingItems,
+  orderStatusBreakdown,
+  lowStockItems,
 }: MerchantOwnerDashboardProps) {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('id-ID', {
@@ -275,48 +294,171 @@ export default function MerchantOwnerDashboard({
       </div>
 
       {/* Recent Orders */}
-      <div className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
-        <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">
-          Recent Orders
-        </h3>
-        <div className="space-y-3">
-          {recentOrders.map((order) => (
-            <div
-              key={order.id.toString()}
-              className="rounded-lg border border-gray-100 p-4 dark:border-gray-800"
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3">
-                    <p className="font-medium text-gray-900 dark:text-white">
-                      Order #{order.id.toString().slice(-6)}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {/* Recent Orders */}
+        <div className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
+          <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">
+            Recent Orders
+          </h3>
+          <div className="space-y-3">
+            {recentOrders.slice(0, 5).map((order) => (
+              <div
+                key={order.id.toString()}
+                className="rounded-lg border border-gray-100 p-4 dark:border-gray-800"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3">
+                      <p className="font-medium text-gray-900 dark:text-white">
+                        Order #{order.id.toString().slice(-6)}
+                      </p>
+                      <span
+                        className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                          order.status === 'COMPLETED'
+                            ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                            : order.status === 'PENDING'
+                              ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
+                              : order.status === 'CANCELLED'
+                                ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+                                : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+                        }`}
+                      >
+                        {order.status}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                      {formatDate(order.createdAt)} • {order.orderItems.length} items
                     </p>
-                    <span
-                      className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                        order.status === 'COMPLETED'
-                          ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                          : order.status === 'PENDING'
-                            ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
-                            : order.status === 'CANCELLED'
-                              ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
-                              : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
-                      }`}
-                    >
-                      {order.status}
-                    </span>
                   </div>
-                  <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                    {formatDate(order.createdAt)} • {order.orderItems.length} items
-                  </p>
+                  <div className="text-right">
+                    <p className="font-semibold text-gray-900 dark:text-white">
+                      {formatCurrency(order.totalAmount.toNumber())}
+                    </p>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <p className="font-semibold text-gray-900 dark:text-white">
-                    {formatCurrency(order.totalAmount.toNumber())}
+              </div>
+            ))}
+            {recentOrders.length === 0 && (
+              <div className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                No orders yet
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Top Selling Items */}
+        <div className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
+          <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">
+            Top Selling Items (Last 30 Days)
+          </h3>
+          <div className="space-y-3">
+            {topSellingItems.map((item, index) => (
+              <div
+                key={item.menuId.toString()}
+                className="flex items-center gap-4 rounded-lg border border-gray-100 p-4 dark:border-gray-800"
+              >
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-50 text-lg font-bold text-brand-600 dark:bg-brand-900/30 dark:text-brand-400">
+                  {index + 1}
+                </div>
+                <div className="flex-1">
+                  <p className="font-medium text-gray-900 dark:text-white">
+                    {item.menuName}
+                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    {item.totalQuantity} sold • {formatCurrency(item.totalRevenue)}
                   </p>
                 </div>
               </div>
-            </div>
-          ))}
+            ))}
+            {topSellingItems.length === 0 && (
+              <div className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                No sales data yet
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Order Status & Low Stock */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {/* Order Status Breakdown */}
+        <div className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
+          <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">
+            Order Status Breakdown
+          </h3>
+          <div className="space-y-3">
+            {orderStatusBreakdown.map((item) => (
+              <div key={item.status} className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`h-3 w-3 rounded-full ${
+                      item.status === 'COMPLETED'
+                        ? 'bg-green-500'
+                        : item.status === 'PENDING'
+                          ? 'bg-yellow-500'
+                          : item.status === 'CANCELLED'
+                            ? 'bg-red-500'
+                            : item.status === 'IN_PROGRESS'
+                              ? 'bg-blue-500'
+                              : item.status === 'READY'
+                                ? 'bg-purple-500'
+                                : 'bg-gray-500'
+                    }`}
+                  />
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {item.status}
+                  </span>
+                </div>
+                <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                  {item.count}
+                </span>
+              </div>
+            ))}
+            {orderStatusBreakdown.length === 0 && (
+              <div className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                No orders yet
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Low Stock Items */}
+        <div className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
+          <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">
+            Low Stock Alert
+          </h3>
+          <div className="space-y-3">
+            {lowStockItems.map((item) => (
+              <div
+                key={item.id.toString()}
+                className="flex items-center justify-between rounded-lg border border-warning-200 bg-warning-50 p-4 dark:border-warning-800 dark:bg-warning-900/20"
+              >
+                <div>
+                  <p className="font-medium text-gray-900 dark:text-white">
+                    {item.name}
+                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    {formatCurrency(item.price.toNumber())}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-semibold text-warning-700 dark:text-warning-400">
+                    {item.stockQty || 0} left
+                  </p>
+                  <p className="text-xs text-warning-600 dark:text-warning-500">
+                    Low stock
+                  </p>
+                </div>
+              </div>
+            ))}
+            {lowStockItems.length === 0 && (
+              <div className="rounded-lg border border-gray-100 bg-green-50 p-4 text-center dark:border-gray-800 dark:bg-green-900/20">
+                <p className="text-sm font-medium text-green-700 dark:text-green-400">
+                  ✓ All items have sufficient stock
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
