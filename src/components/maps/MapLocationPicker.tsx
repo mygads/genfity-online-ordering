@@ -32,27 +32,10 @@ export default function MapLocationPicker({
   const [searching, setSearching] = useState(false);
   const [gettingLocation, setGettingLocation] = useState(false);
 
-  const handleUseMyLocation = () => {
-    if (!navigator.geolocation) {
-      alert('Geolocation is not supported by your browser');
-      return;
-    }
-
-    setGettingLocation(true);
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        onLocationChange(position.coords.latitude, position.coords.longitude);
-        setGettingLocation(false);
-      },
-      (error) => {
-        console.error('Geolocation error:', error);
-        alert('Failed to get your location. Please check your browser permissions.');
-        setGettingLocation(false);
-      }
-    );
-  };
-
-  const handleSearch = async () => {
+  const handleSearch = async (e?: React.MouseEvent | React.KeyboardEvent) => {
+    // Prevent form submission
+    e?.preventDefault();
+    
     if (!searchQuery.trim()) return;
 
     setSearching(true);
@@ -79,8 +62,32 @@ export default function MapLocationPicker({
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
-      handleSearch();
+      e.preventDefault(); // Prevent form submission
+      handleSearch(e);
     }
+  };
+
+  const handleUseMyLocation = (e?: React.MouseEvent) => {
+    // Prevent form submission
+    e?.preventDefault();
+    
+    if (!navigator.geolocation) {
+      alert('Geolocation is not supported by your browser');
+      return;
+    }
+
+    setGettingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        onLocationChange(position.coords.latitude, position.coords.longitude);
+        setGettingLocation(false);
+      },
+      (error) => {
+        console.error('Geolocation error:', error);
+        alert('Failed to get your location. Please check your browser permissions.');
+        setGettingLocation(false);
+      }
+    );
   };
 
   return (
@@ -91,13 +98,13 @@ export default function MapLocationPicker({
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          onKeyPress={handleKeyPress}
+          onKeyDown={handleKeyPress}
           placeholder="Search for a location (e.g., Sydney Opera House)"
           className="h-10 flex-1 rounded-lg border border-gray-200 bg-white px-4 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30"
         />
         <button
           type="button"
-          onClick={handleSearch}
+          onClick={(e) => handleSearch(e)}
           disabled={searching || !searchQuery.trim()}
           className="h-10 rounded-lg bg-brand-500 px-4 text-sm font-medium text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
         >
@@ -105,7 +112,7 @@ export default function MapLocationPicker({
         </button>
         <button
           type="button"
-          onClick={handleUseMyLocation}
+          onClick={(e) => handleUseMyLocation(e)}
           disabled={gettingLocation}
           className="h-10 rounded-lg border border-gray-200 bg-white px-4 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
           title="Use my current location"
