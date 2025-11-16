@@ -4,7 +4,6 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import AddonItemFormModal from "@/components/addon-items/AddonItemFormModal";
-import StockUpdateModal from "@/components/addon-items/StockUpdateModal";
 import AddonItemsTable from "@/components/addon-items/AddonItemsTable";
 import AddonItemsFilters from "@/components/addon-items/AddonItemsFilters";
 
@@ -502,17 +501,6 @@ export default function AddonItemsPage() {
           onSubmit={handleSubmit}
           onChange={handleChange}
           onCancel={handleCancel}
-        />
-
-        {/* Stock Update Modal Component */}
-        <StockUpdateModal
-          show={stockModal.show}
-          itemName={stockModal.itemName}
-          currentStock={stockModal.currentStock}
-          newStock={stockModal.newStock}
-          onStockChange={(value) => setStockModal(prev => ({ ...prev, newStock: value }))}
-          onUpdate={handleUpdateStock}
-          onClose={() => setStockModal({ show: false, itemId: null, itemName: "", currentStock: 0, newStock: "" })}
         />
 
         <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/3 lg:p-6">

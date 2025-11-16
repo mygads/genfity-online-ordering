@@ -65,7 +65,6 @@ export default function MerchantMenuPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [merchant, setMerchant] = useState<Merchant | null>(null);
   const [selectedPromoMenu, setSelectedPromoMenu] = useState<MenuItem | null>(null);
-  const [selectedStockMenu, setSelectedStockMenu] = useState<MenuItem | null>(null);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   
   // Bulk selection states
@@ -194,41 +193,6 @@ export default function MerchantMenuPage() {
       }
 
       setSuccess(`Menu "${name}" ${!currentStatus ? 'activated' : 'deactivated'} successfully`);
-      setTimeout(() => setSuccess(null), 3000);
-      fetchData();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
-      setTimeout(() => setError(null), 5000);
-    }
-  };
-
-  const handleOutOfStock = async (id: string, name: string) => {
-    if (!confirm(`Set "${name}" as out of stock (stock = 0)?`)) {
-      return;
-    }
-
-    try {
-      const token = localStorage.getItem("accessToken");
-      if (!token) {
-        router.push("/admin/login");
-        return;
-      }
-
-      const response = await fetch(`/api/merchant/menu/${id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ stockQty: 0 }),
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.message || "Failed to update stock");
-      }
-
-      setSuccess(`Menu "${name}" marked as out of stock`);
       setTimeout(() => setSuccess(null), 3000);
       fetchData();
     } catch (err) {
@@ -526,7 +490,7 @@ export default function MerchantMenuPage() {
           </div>
         )}
 
-        <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] lg:p-6">
+        <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/3 lg:p-6">
           <div className="mb-5 flex items-center justify-between">
             <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">Menu Items List</h3>
             <div className="flex items-center gap-3">
@@ -659,7 +623,10 @@ export default function MerchantMenuPage() {
               type={menuItems.length === 0 ? "no-menu" : "no-results"}
               title={menuItems.length === 0 ? undefined : "No menu items match your filters"}
               description={menuItems.length === 0 ? undefined : "Try adjusting your search or filters"}
-              onAction={menuItems.length === 0 ? () => router.push('/admin/dashboard/menu/create') : undefined}
+              action={menuItems.length === 0 ? {
+                label: "Create Menu Item",
+                onClick: () => router.push('/admin/dashboard/menu/create')
+              } : undefined}
             />
           ) : (
             <div className="overflow-x-auto">
@@ -818,34 +785,6 @@ export default function MerchantMenuPage() {
                                     </svg>
                                     View Detail
                                   </Link>
-                                  {item.trackStock && (item.stockQty || 0) > 0 && (
-                                    <button
-                                      onClick={() => {
-                                        handleOutOfStock(item.id, item.name);
-                                        setOpenDropdownId(null);
-                                      }}
-                                      className="flex w-full items-center gap-3 px-4 py-2 text-sm text-orange-600 hover:bg-orange-50 dark:text-orange-400 dark:hover:bg-orange-900/20"
-                                    >
-                                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                      </svg>
-                                      Out of Stock
-                                    </button>
-                                  )}
-                                  {item.trackStock && (
-                                    <button
-                                      onClick={() => {
-                                        setSelectedStockMenu(item);
-                                        setOpenDropdownId(null);
-                                      }}
-                                      className="flex w-full items-center gap-3 px-4 py-2 text-sm text-brand-600 hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-brand-900/20"
-                                    >
-                                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                                      </svg>
-                                      Add Stock
-                                    </button>
-                                  )}
                                   <button
                                     onClick={() => {
                                       setSelectedPromoMenu(item);
@@ -953,104 +892,6 @@ export default function MerchantMenuPage() {
           )}
         </div>
       </div>
-
-      {/* Stock Modal */}
-      {selectedStockMenu && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-6 shadow-xl dark:border-gray-800 dark:bg-gray-900">
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">
-                Add Stock: {selectedStockMenu.name}
-              </h3>
-              <button
-                onClick={() => setSelectedStockMenu(null)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-              >
-                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            <div className="mb-4 rounded-lg bg-gray-50 p-4 dark:bg-gray-800">
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Current Stock: <span className="font-semibold text-gray-800 dark:text-white/90">{selectedStockMenu.stockQty || 0} pcs</span>
-              </p>
-              {selectedStockMenu.autoResetStock && selectedStockMenu.dailyStockTemplate && (
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-500">
-                  Daily auto-reset to {selectedStockMenu.dailyStockTemplate} pcs
-                </p>
-              )}
-            </div>
-
-            <form onSubmit={async (e) => {
-              e.preventDefault();
-              const formData = new FormData(e.currentTarget);
-              const quantity = parseInt(formData.get('quantity') as string);
-
-              try {
-                const token = localStorage.getItem("accessToken");
-                if (!token) {
-                  router.push("/admin/login");
-                  return;
-                }
-
-                const response = await fetch(`/api/merchant/menu/${selectedStockMenu.id}/add-stock`, {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${token}`,
-                  },
-                  body: JSON.stringify({ quantity }),
-                });
-
-                if (!response.ok) {
-                  const data = await response.json();
-                  throw new Error(data.message || "Failed to add stock");
-                }
-
-                setSuccess(`Added ${quantity} stock to ${selectedStockMenu.name}`);
-                setTimeout(() => setSuccess(null), 3000);
-                setSelectedStockMenu(null);
-                fetchData();
-              } catch (err) {
-                setError(err instanceof Error ? err.message : "An error occurred");
-                setTimeout(() => setError(null), 5000);
-              }
-            }}>
-              <div className="mb-4">
-                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Quantity to Add
-                </label>
-                <input
-                  type="number"
-                  name="quantity"
-                  min="1"
-                  required
-                  placeholder="Enter quantity"
-                  className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 text-sm text-gray-800 focus:border-brand-300 focus:outline-none focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-gray-900 dark:text-white/90"
-                />
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setSelectedStockMenu(null)}
-                  className="flex-1 h-11 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 h-11 rounded-lg bg-brand-500 text-sm font-medium text-white hover:bg-brand-600"
-                >
-                  Add Stock
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* Promo Modal */}
       {selectedPromoMenu && (

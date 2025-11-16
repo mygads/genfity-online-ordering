@@ -53,7 +53,7 @@ export default function MerchantCategoriesPage() {
   const [availableMenus, setAvailableMenus] = useState<MenuItem[]>([]);
   const [categoryMenus, setCategoryMenus] = useState<MenuItem[]>([]);
   const [sortBy, setSortBy] = useState<string>("manual");
-  const [useDragDrop, setUseDragDrop] = useState<boolean>(true);
+  const [useDragDrop, setUseDragDrop] = useState<boolean>(false);
   const [hasUnsavedOrder, setHasUnsavedOrder] = useState<boolean>(false);
   const [pendingReorder, setPendingReorder] = useState<Category[] | null>(null);
   
