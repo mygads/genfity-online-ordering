@@ -422,30 +422,6 @@ export default function AddonItemsPage() {
             </button>
           </div>
 
-          {/* Stock Management Info Banner */}
-          <div className="mb-5 rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-900/50 dark:bg-blue-900/20">
-            <div className="flex items-start gap-3">
-              <svg className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <div className="flex-1">
-                <p className="text-sm font-medium text-blue-800 dark:text-blue-300">
-                  Stock Management Available
-                </p>
-                <p className="mt-1 text-sm text-blue-700 dark:text-blue-400">
-                  To update stock quantities, use the{" "}
-                  <a
-                    href="/admin/dashboard/menu/stock-overview"
-                    className="font-semibold underline hover:text-blue-900 dark:hover:text-blue-200"
-                  >
-                    Stock Management
-                  </a>{" "}
-                  page for centralized control of menu and addon stock.
-                </p>
-              </div>
-            </div>
-          </div>
-
           {/* Filters Component */}
           <AddonItemsFilters
             searchQuery={searchQuery}
