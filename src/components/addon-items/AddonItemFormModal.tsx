@@ -138,11 +138,11 @@ export default function AddonItemFormModal({
           {/* Input Type Selector */}
           <div>
             <AddonInputTypeSelector
-              value={formData.inputType === "SELECT" ? "radio" : "quantity"}
+              value={formData.inputType === "SELECT" ? "checkbox" : "quantity"}
               minSelection={(categories.find(c => c.id === formData.addonCategoryId)?.minSelection) || 0}
               maxSelection={(categories.find(c => c.id === formData.addonCategoryId)?.maxSelection) || null}
               onChange={(newType) => {
-                const apiType = newType === 'radio' ? 'SELECT' : 'QTY';
+                const apiType = newType === 'checkbox' ? 'SELECT' : 'QTY';
                 const event = {
                   target: { name: 'inputType', value: apiType }
                 } as React.ChangeEvent<HTMLSelectElement>;

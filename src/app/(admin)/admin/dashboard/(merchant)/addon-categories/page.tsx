@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import ViewAddonItemsModal from "@/components/addon-categories/ViewAddonItemsModal";
+import MenuRelationshipModal from "@/components/addon-categories/MenuRelationshipModal";
 import EmptyState from "@/components/ui/EmptyState";
 import { exportAddonCategories } from "@/lib/utils/excelExport";
 
@@ -45,6 +46,12 @@ export default function AddonCategoriesPage() {
     categoryName: string;
     items: any[];
   }>({ show: false, categoryId: null, categoryName: "", items: [] });
+  
+  const [viewRelationshipsModal, setViewRelationshipsModal] = useState<{
+    show: boolean;
+    categoryId: string | null;
+    categoryName: string;
+  }>({ show: false, categoryId: null, categoryName: "" });
   
   const [formData, setFormData] = useState<AddonCategoryFormData>({
     name: "",
@@ -206,6 +213,14 @@ export default function AddonCategoriesPage() {
     }
   };
 
+  const handleViewRelationships = (category: AddonCategory) => {
+    setViewRelationshipsModal({
+      show: true,
+      categoryId: category.id,
+      categoryName: category.name,
+    });
+  };
+
   const handleToggleActive = async (id: string, currentStatus: boolean, name: string) => {
     try {
       const token = localStorage.getItem("accessToken");
@@ -263,6 +278,32 @@ export default function AddonCategoriesPage() {
         return;
       }
 
+      // Check relationships for all selected categories
+      const relationshipChecks = await Promise.all(
+        selectedCategories.map(async (id) => {
+          const response = await fetch(`/api/merchant/addon-categories/${id}/relationships`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (response.ok) {
+            const data = await response.json();
+            return { id, menuCount: data.data?.length || 0 };
+          }
+          return { id, menuCount: 0 };
+        })
+      );
+
+      const categoriesWithMenus = relationshipChecks.filter(c => c.menuCount > 0);
+      const totalMenusAffected = categoriesWithMenus.reduce((sum, c) => sum + c.menuCount, 0);
+
+      if (categoriesWithMenus.length > 0) {
+        const confirmMessage = `⚠️ WARNING: ${categoriesWithMenus.length} of ${selectedCategories.length} selected addon categories are currently in use.\n\nTotal menus affected: ${totalMenusAffected}\n\nDeleting these categories will break menu configurations. Are you sure you want to continue?`;
+        
+        if (!confirm(confirmMessage)) {
+          setShowBulkDeleteConfirm(false);
+          return;
+        }
+      }
+
       const response = await fetch("/api/merchant/addon-categories/bulk-delete", {
         method: "POST",
         headers: {
@@ -292,15 +333,37 @@ export default function AddonCategoriesPage() {
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Are you sure you want to delete "${name}"?`)) {
-      return;
-    }
-
     try {
       const token = localStorage.getItem("accessToken");
       if (!token) {
         router.push("/admin/login");
         return;
+      }
+
+      // Check if addon category has menu relationships
+      const relationshipsResponse = await fetch(`/api/merchant/addon-categories/${id}/relationships`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (relationshipsResponse.ok) {
+        const relationshipsData = await relationshipsResponse.json();
+        const menuCount = relationshipsData.data?.length || 0;
+
+        if (menuCount > 0) {
+          const menuNames = relationshipsData.data.slice(0, 3).map((m: any) => m.name).join(", ");
+          const remainingCount = menuCount - 3;
+          const menuList = remainingCount > 0 ? `${menuNames}, and ${remainingCount} more` : menuNames;
+          
+          if (!confirm(
+            `⚠️ WARNING: This addon category is used by ${menuCount} menu item${menuCount > 1 ? 's' : ''}:\n\n${menuList}\n\nDeleting this category will break these menu configurations. Are you sure you want to continue?`
+          )) {
+            return;
+          }
+        } else {
+          if (!confirm(`Are you sure you want to delete "${name}"?`)) {
+            return;
+          }
+        }
       }
 
       const response = await fetch(`/api/merchant/addon-categories/${id}`, {
@@ -518,6 +581,16 @@ export default function AddonCategoriesPage() {
           />
         )}
 
+        {/* Menu Relationships Modal */}
+        {viewRelationshipsModal.show && viewRelationshipsModal.categoryId && (
+          <MenuRelationshipModal
+            show={viewRelationshipsModal.show}
+            categoryId={viewRelationshipsModal.categoryId}
+            categoryName={viewRelationshipsModal.categoryName}
+            onClose={() => setViewRelationshipsModal({ show: false, categoryId: null, categoryName: "" })}
+          />
+        )}
+
         <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/3 lg:p-6">
           <div className="mb-5 flex items-center justify-between">
             <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">Addon Categories</h3>
@@ -673,6 +746,15 @@ export default function AddonCategoriesPage() {
                             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => handleViewRelationships(category)}
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-purple-200 bg-purple-50 text-purple-600 hover:bg-purple-100 dark:border-purple-900/50 dark:bg-purple-900/20 dark:text-purple-400 dark:hover:bg-purple-900/30"
+                            title="View Menu Relationships"
+                          >
+                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                             </svg>
                           </button>
                           <button

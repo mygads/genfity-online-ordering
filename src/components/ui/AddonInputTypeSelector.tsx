@@ -1,9 +1,9 @@
 "use client";
 
 import React from 'react';
-import { FaCheckSquare, FaDotCircle, FaPlus, FaMinus } from 'react-icons/fa';
+import { FaCheckSquare, FaPlus, FaMinus } from 'react-icons/fa';
 
-export type AddonInputType = 'checkbox' | 'radio' | 'quantity';
+export type AddonInputType = 'checkbox' | 'quantity';
 
 interface AddonInputTypeSelectorProps {
   value: AddonInputType;
@@ -22,10 +22,9 @@ export default function AddonInputTypeSelector({
 }: AddonInputTypeSelectorProps) {
   // Auto-suggest input type based on selection rules
   const suggestedType = React.useMemo(() => {
-    if (maxSelection === 1) return 'radio';
-    if (maxSelection && maxSelection > 1) return 'checkbox';
+    // Checkbox can handle single selection (max=1) or multiple selections
     return 'checkbox';
-  }, [maxSelection]);
+  }, []);
 
   const options: Array<{
     type: AddonInputType;
@@ -35,16 +34,9 @@ export default function AddonInputTypeSelector({
     recommended?: boolean;
   }> = [
     {
-      type: 'radio',
-      icon: <FaDotCircle className="h-5 w-5" />,
-      label: 'Radio (Select One)',
-      description: 'Customer can select exactly one option',
-      recommended: suggestedType === 'radio',
-    },
-    {
       type: 'checkbox',
       icon: <FaCheckSquare className="h-5 w-5" />,
-      label: 'Checkbox (Multiple)',
+      label: 'Checkbox',
       description: 'Customer can select multiple options',
       recommended: suggestedType === 'checkbox',
     },
@@ -75,7 +67,7 @@ export default function AddonInputTypeSelector({
         ) : null}
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {options.map((option) => (
           <button
             key={option.type}
@@ -143,9 +135,8 @@ export default function AddonInputTypeSelector({
           <div className="text-xs text-blue-700 dark:text-blue-300">
             <p className="font-medium">Input Type Guide:</p>
             <ul className="mt-1 space-y-0.5 text-blue-600 dark:text-blue-400">
-              <li>• <strong>Radio:</strong> Best for &quot;Size&quot; (S/M/L) where only one can be selected</li>
-              <li>• <strong>Checkbox:</strong> Best for &quot;Toppings&quot; where multiple can be selected</li>
-              <li>• <strong>Quantity:</strong> Best for &quot;Extra Cheese (x2)&quot; with specific amounts</li>
+              <li>• <strong>Checkbox:</strong> For single or multiple selection (use Max Selection to control). Set Max=1 for single choice like &quot;Size&quot; (S/M/L)</li>
+              <li>• <strong>Quantity:</strong> Best for &quot;Extra Cheese (x2)&quot; where customers specify exact amounts</li>
             </ul>
           </div>
         </div>

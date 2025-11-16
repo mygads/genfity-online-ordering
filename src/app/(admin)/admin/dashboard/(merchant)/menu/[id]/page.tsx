@@ -217,7 +217,7 @@ export default function MenuDetailPage() {
             Back
           </button>
           <button
-            onClick={() => router.push(`/admin/dashboard/menu/${menuId}/edit`)}
+            onClick={() => router.push(`/admin/dashboard/menu/edit/${menuId}`)}
             className="inline-flex items-center gap-2 rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-brand-600"
           >
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
