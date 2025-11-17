@@ -181,7 +181,10 @@ export const OrderKanbanBoard: React.FC<OrderKanbanBoardProps> = ({
     const order = orders.find(o => String(o.id) === orderId);
     if (!order) return false;
 
-    // Use business logic from orderStatusRules
+    // If dropping in the same column (not actually moving), allow it
+    if (order.status === targetStatus) return true;
+
+    // Use business logic from orderStatusRules for actual status changes
     return canTransitionStatus(order.status, targetStatus);
   };
 
@@ -219,6 +222,16 @@ export const OrderKanbanBoard: React.FC<OrderKanbanBoardProps> = ({
       return;
     }
 
+    await updateOrderStatus(orderId, newStatus);
+  };
+
+  // Handle status change from button click
+  const handleStatusChange = async (orderId: string, newStatus: string) => {
+    await updateOrderStatus(orderId, newStatus as OrderStatus);
+  };
+
+  // Common function to update order status
+  const updateOrderStatus = async (orderId: string, newStatus: OrderStatus) => {
     // Optimistic update
     setOrders(prevOrders =>
       prevOrders.map(o =>
@@ -311,6 +324,7 @@ export const OrderKanbanBoard: React.FC<OrderKanbanBoardProps> = ({
                 status={status}
                 orders={ordersByStatus[status] || []}
                 onOrderClick={(order) => onOrderClick?.(order)}
+                onStatusChange={handleStatusChange}
                 isInvalidDropZone={isInvalid}
                 isOver={overId === status}
                 selectedOrders={selectedOrders}

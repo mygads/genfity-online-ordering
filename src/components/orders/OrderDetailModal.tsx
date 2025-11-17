@@ -24,6 +24,7 @@ import {
   FaPrint,
   FaCheck,
   FaSpinner,
+  FaChevronDown,
 } from 'react-icons/fa';
 import { ORDER_STATUS_COLORS, PAYMENT_STATUS_COLORS } from '@/lib/constants/orderConstants';
 import { getNextPossibleStatuses } from '@/lib/utils/orderStatusRules';
@@ -49,6 +50,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   const [updating, setUpdating] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [merchantCurrency, setMerchantCurrency] = useState<string>('AUD');
+  const [showCustomerDetails, setShowCustomerDetails] = useState(false);
 
   const fetchOrderDetails = useCallback(async () => {
     try {
@@ -117,27 +119,45 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
     setUpdating(true);
     try {
       const token = localStorage.getItem('accessToken');
+      
+      const requestBody = {
+        paymentMethod,
+        amount,
+        notes,
+      };
+      
+      console.log('[OrderDetailModal] Recording payment:', {
+        orderId,
+        requestBody,
+      });
+      
       const response = await fetch(`/api/merchant/orders/${orderId}/payment`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          paymentMethod,
-          amount,
-          notes,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       const data = await response.json();
+      
+      console.log('[OrderDetailModal] Payment response:', {
+        status: response.status,
+        data,
+      });
+      
       if (data.success) {
         await fetchOrderDetails();
         onUpdate?.();
         setShowPaymentModal(false);
+      } else {
+        console.error('[OrderDetailModal] Payment failed:', data.error);
+        alert(`Payment failed: ${data.error}`);
       }
     } catch (error) {
       console.error('Error recording payment:', error);
+      alert('Error recording payment. Please try again.');
     } finally {
       setUpdating(false);
     }
@@ -203,59 +223,52 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
           <>
             {/* Compact Header */}
             <div className="border-b border-gray-200 bg-gray-50 px-5 py-3.5 dark:border-gray-800 dark:bg-gray-800/50">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <h2 className="text-lg font-bold text-gray-800 dark:text-white/90">
-                    Order #{order.orderNumber}
-                  </h2>
-                  {order.orderType === 'DINE_IN' ? (
-                    <div className="flex items-center gap-1.5 rounded-md bg-brand-100 px-2 py-1 dark:bg-brand-900/30">
-                      <FaUtensils className="h-3 w-3 text-brand-600 dark:text-brand-400" />
-                      <span className="text-xs font-semibold text-brand-700 dark:text-brand-400">
-                        {order.tableNumber ? `Table ${order.tableNumber}` : 'Dine In'}
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-1.5 rounded-md bg-success-100 px-2 py-1 dark:bg-success-900/30">
-                      <FaShoppingBag className="h-3 w-3 text-success-600 dark:text-success-400" />
-                      <span className="text-xs font-semibold text-success-700 dark:text-success-400">Takeaway</span>
-                    </div>
-                  )}
+              <div className="flex items-start justify-between">
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-3">
+                    <h2 className="text-lg font-bold text-gray-800 dark:text-white/90">
+                      Order #{order.orderNumber}
+                    </h2>
+                    {order.orderType === 'DINE_IN' ? (
+                      <div className="flex items-center gap-1.5 rounded-md bg-brand-100 px-2 py-1 dark:bg-brand-900/30">
+                        <FaUtensils className="h-3 w-3 text-brand-600 dark:text-brand-400" />
+                        <span className="text-xs font-semibold text-brand-700 dark:text-brand-400">
+                          {order.tableNumber ? `Table ${order.tableNumber}` : 'Dine In'}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5 rounded-md bg-success-100 px-2 py-1 dark:bg-success-900/30">
+                        <FaShoppingBag className="h-3 w-3 text-success-600 dark:text-success-400" />
+                        <span className="text-xs font-semibold text-success-700 dark:text-success-400">Takeaway</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                    <FaClock className="h-3 w-3" />
+                    <span>{formatDateTime(order.placedAt)}</span>
+                  </div>
                 </div>
-                <button
-                  onClick={onClose}
-                  className="flex h-7 w-7 items-center justify-center rounded-md border border-gray-200 text-gray-500 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800"
-                >
-                  <FaTimes className="h-3.5 w-3.5" />
-                </button>
-              </div>
-              <div className="mt-1.5 flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
-                <FaClock className="h-3 w-3" />
-                <span>{formatDateTime(order.placedAt)}</span>
+                <div className="flex items-center gap-3">
+                  {/* Order Status Badge */}
+                  <span className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold ${ORDER_STATUS_COLORS[order.status as keyof typeof ORDER_STATUS_COLORS].bg} ${ORDER_STATUS_COLORS[order.status as keyof typeof ORDER_STATUS_COLORS].text}`}>
+                    {ORDER_STATUS_COLORS[order.status as keyof typeof ORDER_STATUS_COLORS].label}
+                  </span>
+                  {/* Payment Status Badge */}
+                  <span className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold ${order.payment ? PAYMENT_STATUS_COLORS[order.payment.status as keyof typeof PAYMENT_STATUS_COLORS].bg : PAYMENT_STATUS_COLORS.PENDING.bg} ${order.payment ? PAYMENT_STATUS_COLORS[order.payment.status as keyof typeof PAYMENT_STATUS_COLORS].text : PAYMENT_STATUS_COLORS.PENDING.text}`}>
+                    {order.payment ? PAYMENT_STATUS_COLORS[order.payment.status as keyof typeof PAYMENT_STATUS_COLORS].label : PAYMENT_STATUS_COLORS.PENDING.label}
+                  </span>
+                  <button
+                    onClick={onClose}
+                    className="flex h-7 w-7 items-center justify-center rounded-md border border-gray-200 text-gray-500 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800"
+                  >
+                    <FaTimes className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               </div>
             </div>
 
             {/* Scrollable Content */}
             <div className="overflow-y-auto px-5 py-4" style={{ maxHeight: 'calc(85vh - 180px)' }}>
-              {/* Status & Payment - Compact 2 Column Grid */}
-              <div className="mb-4 grid grid-cols-2 gap-3">
-                {/* Order Status */}
-                <div>
-                  <p className="mb-1.5 text-xs font-medium text-gray-500 dark:text-gray-400">Status</p>
-                  <span className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold ${ORDER_STATUS_COLORS[order.status as keyof typeof ORDER_STATUS_COLORS].bg} ${ORDER_STATUS_COLORS[order.status as keyof typeof ORDER_STATUS_COLORS].text}`}>
-                    {ORDER_STATUS_COLORS[order.status as keyof typeof ORDER_STATUS_COLORS].label}
-                  </span>
-                </div>
-
-                {/* Payment Status */}
-                <div>
-                  <p className="mb-1.5 text-xs font-medium text-gray-500 dark:text-gray-400">Payment</p>
-                  <span className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold ${order.payment ? PAYMENT_STATUS_COLORS[order.payment.status as keyof typeof PAYMENT_STATUS_COLORS].bg : PAYMENT_STATUS_COLORS.PENDING.bg} ${order.payment ? PAYMENT_STATUS_COLORS[order.payment.status as keyof typeof PAYMENT_STATUS_COLORS].text : PAYMENT_STATUS_COLORS.PENDING.text}`}>
-                    {order.payment ? PAYMENT_STATUS_COLORS[order.payment.status as keyof typeof PAYMENT_STATUS_COLORS].label : PAYMENT_STATUS_COLORS.PENDING.label}
-                  </span>
-                </div>
-              </div>
-
               {/* Payment Details - Compact */}
               {order.payment && order.payment.status === 'COMPLETED' && (
                 <div className="mb-4 rounded-lg border border-success-200 bg-success-50/50 p-3 dark:border-success-800 dark:bg-success-900/10">
@@ -288,25 +301,38 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                 </div>
               )}
 
-              {/* Customer Info - Compact */}
+              {/* Customer Info - Compact with Collapsible Details */}
               {order.customer && (
                 <div className="mb-4">
-                  <p className="mb-2 text-xs font-semibold text-gray-700 dark:text-gray-300">Customer</p>
-                  <div className="space-y-1.5 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-800/50">
+                  <div className="mb-2 flex items-center justify-between">
+                    <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">Customer</p>
+                    <button
+                      onClick={() => setShowCustomerDetails(!showCustomerDetails)}
+                      className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-brand-600 hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-brand-900/20"
+                    >
+                      <span>{showCustomerDetails ? 'Hide Details' : 'View Details'}</span>
+                      <FaChevronDown className={`h-3 w-3 transition-transform ${showCustomerDetails ? 'rotate-180' : ''}`} />
+                    </button>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-800/50">
                     <div className="flex items-center gap-2 text-sm">
                       <FaUser className="h-3 w-3 text-gray-400" />
                       <span className="font-medium text-gray-800 dark:text-white/90">{order.customer.name}</span>
                     </div>
-                    {order.customer.phone && (
-                      <div className="flex items-center gap-2 text-sm">
-                        <FaPhone className="h-3 w-3 text-gray-400" />
-                        <span className="text-gray-600 dark:text-gray-400">{order.customer.phone}</span>
-                      </div>
-                    )}
-                    {order.customer.email && (
-                      <div className="flex items-center gap-2 text-sm">
-                        <FaMapMarkerAlt className="h-3 w-3 text-gray-400" />
-                        <span className="text-gray-600 dark:text-gray-400">{order.customer.email}</span>
+                    {showCustomerDetails && (
+                      <div className="mt-2 space-y-1.5 border-t border-gray-200 pt-2 dark:border-gray-700">
+                        {order.customer.phone && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <FaPhone className="h-3 w-3 text-gray-400" />
+                            <span className="text-gray-600 dark:text-gray-400">{order.customer.phone}</span>
+                          </div>
+                        )}
+                        {order.customer.email && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <FaMapMarkerAlt className="h-3 w-3 text-gray-400" />
+                            <span className="text-gray-600 dark:text-gray-400">{order.customer.email}</span>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -353,7 +379,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                 </div>
               </div>
 
-              {/* Actions - Compact */}
+              {/* Actions - Compact with Color Coding */}
               <div className="space-y-2">
                 {/* Payment Actions */}
                 {(!order.payment || order.payment.status === 'PENDING') ? (
@@ -375,24 +401,54 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                   </button>
                 )}
 
-                {/* Status Update Actions */}
-                {getNextPossibleStatuses(order.status as OrderStatus).length > 0 && (
-                  <div className="flex gap-2">
-                    {getNextPossibleStatuses(order.status as OrderStatus).map(status => (
-                      <button
-                        key={status}
-                        onClick={() => handleStatusUpdate(status)}
-                        disabled={updating}
-                        className="flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg bg-brand-500 text-sm font-semibold text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {updating ? (
-                          <FaSpinner className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          ORDER_STATUS_COLORS[status as keyof typeof ORDER_STATUS_COLORS].label
-                        )}
-                      </button>
-                    ))}
-                  </div>
+                {/* Status Update Actions - Show only if status is READY or allow all except COMPLETED */}
+                {order.status === 'READY' ? (
+                  // For READY status, only show Completed button (green)
+                  <button
+                    onClick={() => handleStatusUpdate('COMPLETED' as OrderStatus)}
+                    disabled={updating}
+                    className="flex h-9 w-full items-center justify-center gap-1.5 rounded-lg bg-success-500 text-sm font-semibold text-white hover:bg-success-600 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {updating ? (
+                      <FaSpinner className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <>
+                        <FaCheck className="h-3.5 w-3.5" />
+                        <span>Mark as Completed</span>
+                      </>
+                    )}
+                  </button>
+                ) : (
+                  // For other statuses, show next possible statuses with color coding
+                  getNextPossibleStatuses(order.status as OrderStatus).length > 0 && (
+                    <div className="flex gap-2">
+                      {getNextPossibleStatuses(order.status as OrderStatus).map(status => {
+                        // Color coding: Cancelled = red, Completed = green, others = brand blue
+                        const isCompleted = status === 'COMPLETED';
+                        const isCancelled = status === 'CANCELLED';
+                        const buttonClass = isCancelled 
+                          ? 'bg-error-500 hover:bg-error-600' 
+                          : isCompleted
+                          ? 'bg-success-500 hover:bg-success-600'
+                          : 'bg-brand-500 hover:bg-brand-600';
+                        
+                        return (
+                          <button
+                            key={status}
+                            onClick={() => handleStatusUpdate(status)}
+                            disabled={updating}
+                            className={`flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50 ${buttonClass}`}
+                          >
+                            {updating ? (
+                              <FaSpinner className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              ORDER_STATUS_COLORS[status as keyof typeof ORDER_STATUS_COLORS].label
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )
                 )}
               </div>
             </div>

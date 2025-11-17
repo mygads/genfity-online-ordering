@@ -9,7 +9,7 @@
 'use client';
 
 import React from 'react';
-import { FaUser, FaPhone, FaUtensils, FaShoppingBag, FaClock } from 'react-icons/fa';
+import { FaUser, FaPhone, FaUtensils, FaShoppingBag, FaClock, FaCheck } from 'react-icons/fa';
 import { ORDER_STATUS_COLORS, PAYMENT_STATUS_COLORS } from '@/lib/constants/orderConstants';
 import { formatDistanceToNow } from 'date-fns';
 import type { OrderListItem, OrderWithDetails } from '@/lib/types/order';
@@ -30,6 +30,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
   draggable = false,
   showQuickActions = true,
   onClick,
+  onStatusChange,
   onViewDetails,
   className = '',
   currency = 'AUD',
@@ -196,8 +197,24 @@ export const OrderCard: React.FC<OrderCardProps> = ({
         </span>
       </div>
 
-      {/* Quick Actions */}
-      {showQuickActions && onViewDetails && (
+      {/* Quick Actions - Show Completed button for READY status */}
+      {showQuickActions && order.status === 'READY' && onStatusChange && (
+        <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onStatusChange('COMPLETED');
+            }}
+            className="w-full h-9 px-4 rounded-lg bg-success-500 text-white font-semibold text-sm hover:bg-success-600 transition-colors duration-150 flex items-center justify-center gap-2"
+          >
+            <FaCheck className="h-3.5 w-3.5" />
+            Complete Order
+          </button>
+        </div>
+      )}
+      
+      {/* View Details button for non-READY or when onStatusChange not provided */}
+      {showQuickActions && onViewDetails && (order.status !== 'READY' || !onStatusChange) && (
         <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">
           <button
             onClick={(e) => {

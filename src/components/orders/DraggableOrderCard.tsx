@@ -15,6 +15,7 @@ import type { OrderListItem } from '@/lib/types/order';
 interface DraggableOrderCardProps {
   order: OrderListItem;
   onClick?: () => void;
+  onStatusChange?: (newStatus: string) => void;
   isFirst?: boolean;
   isLast?: boolean;
   currency?: string;
@@ -23,6 +24,7 @@ interface DraggableOrderCardProps {
 export const DraggableOrderCard: React.FC<DraggableOrderCardProps> = ({
   order,
   onClick,
+  onStatusChange,
   isFirst = false,
   isLast = false,
   currency = 'AUD',
@@ -58,6 +60,7 @@ export const DraggableOrderCard: React.FC<DraggableOrderCardProps> = ({
         order={order}
         draggable={!dragDisabled}
         onClick={onClick}
+        onStatusChange={onStatusChange}
         onViewDetails={onClick}
         currency={currency}
       />

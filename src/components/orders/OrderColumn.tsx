@@ -20,6 +20,7 @@ interface OrderColumnProps {
   status: string;
   orders: OrderListItem[];
   onOrderClick: (order: OrderListItem) => void;
+  onStatusChange?: (orderId: string, newStatus: string) => void;
   isInvalidDropZone?: boolean;
   isOver?: boolean;
   selectedOrders?: Set<string>;
@@ -32,6 +33,7 @@ export const OrderColumn: React.FC<OrderColumnProps> = ({
   status,
   orders,
   onOrderClick,
+  onStatusChange,
   isInvalidDropZone = false,
   isOver = false,
   selectedOrders = new Set(),
@@ -112,6 +114,7 @@ export const OrderColumn: React.FC<OrderColumnProps> = ({
                 <DraggableOrderCard 
                   order={order}
                   onClick={() => onOrderClick(order)}
+                  onStatusChange={(newStatus: string) => onStatusChange?.(String(order.id), newStatus)}
                   currency={currency}
                 />
               </div>

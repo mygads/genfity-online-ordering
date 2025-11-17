@@ -26,12 +26,25 @@ async function handlePost(
 ) {
   try {
     const params = await contextParams.params;
-    const orderIdString = params?.id || '0';
+    // Fix: use 'orderId' instead of 'id' to match folder name [orderId]
+    const orderIdString = params?.orderId || params?.id || '0';
     const orderId = BigInt(orderIdString);
     const body = await req.json();
 
+    console.log('[Payment API] Request received:', {
+      params,
+      orderIdString,
+      orderId: orderId.toString(),
+      body,
+      bodyType: {
+        paymentMethod: typeof body.paymentMethod,
+        amount: typeof body.amount,
+      },
+    });
+
     // Validate orderId
     if (orderId === BigInt(0)) {
+      console.error('[Payment API] Invalid order ID');
       return NextResponse.json(
         {
           success: false,
@@ -43,6 +56,7 @@ async function handlePost(
 
     // Validate required fields
     if (!body.paymentMethod) {
+      console.error('[Payment API] Payment method missing');
       return NextResponse.json(
         {
           success: false,
@@ -53,6 +67,7 @@ async function handlePost(
     }
 
     if (!body.amount || typeof body.amount !== 'number') {
+      console.error('[Payment API] Invalid amount:', body.amount);
       return NextResponse.json(
         {
           success: false,
@@ -64,6 +79,8 @@ async function handlePost(
 
     // Validate payment method is valid PaymentMethod enum
     if (!Object.values(PaymentMethod).includes(body.paymentMethod)) {
+      console.error('[Payment API] Invalid payment method:', body.paymentMethod);
+      console.log('[Payment API] Valid methods:', Object.values(PaymentMethod));
       return NextResponse.json(
         {
           success: false,
@@ -72,6 +89,8 @@ async function handlePost(
         { status: 400 }
       );
     }
+
+    console.log('[Payment API] Validation passed, recording payment...');
 
     // Record payment using OrderManagementService
     const result = await OrderManagementService.recordPayment(orderId, {
