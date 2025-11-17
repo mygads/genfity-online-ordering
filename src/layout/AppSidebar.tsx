@@ -171,6 +171,23 @@ const merchantNavGroups: NavGroup[] = [
     ],
   },
   {
+    title: "Settings",
+    items: [
+      {
+        icon: <FileIcon />,
+        name: "Opening Hours",
+        path: "/admin/dashboard/opening-hours",
+        roles: ["MERCHANT_OWNER"],
+      },
+      {
+        icon: <BoxIconLine />,
+        name: "Merchant Settings",
+        path: "/admin/dashboard/settings",
+        roles: ["MERCHANT_OWNER"],
+      },
+    ],
+  },
+  {
     title: "Team",
     items: [
       {
