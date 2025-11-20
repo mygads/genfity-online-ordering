@@ -3,7 +3,6 @@
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { useCart } from '@/context/CartContext';
-import { formatCurrency } from '@/lib/utils/format';
 
 interface FloatingCartButtonProps {
   merchantCode: string;
@@ -11,19 +10,31 @@ interface FloatingCartButtonProps {
 }
 
 /**
- * ✅ ENHANCED: Floating Cart Button
+ * ✅ REDESIGNED: Floating Checkout Button
  * 
- * @improvements
- * - Item count badge animation
- * - Pulse on new item
- * - Better shadow/elevation
- * - Accessible (ARIA)
+ * @description
+ * Three-section layout matching reference design:
+ * - Left: Cart icon with item count badge
+ * - Center: Total label and price
+ * - Right: CHECK OUT button with item count
+ * 
+ * @specification Based on "Burjo Ngegas Gombel" checkout footer
  */
 export default function FloatingCartButton({ merchantCode, mode }: FloatingCartButtonProps) {
   const router = useRouter();
   const { cart, getItemCount, getTotal } = useCart();
   const [pulse, setPulse] = useState(false);
   const [prevItemCount, setPrevItemCount] = useState(0);
+
+  // Format currency based on merchant settings
+  const formatPrice = (amount: number, currency: string = 'AUD'): string => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: currency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  };
 
   useEffect(() => {
     if (!cart) return;
@@ -51,50 +62,62 @@ export default function FloatingCartButton({ merchantCode, mode }: FloatingCartB
   };
 
   return (
-    <button
-      onClick={handleClick}
-      className={`
-        fixed bottom-6 left-1/2 -translate-x-1/2 z-50
-        flex items-center gap-3
-        px-6 py-3
-        bg-orange-500 hover:bg-orange-600 text-white
-        rounded-full
-        shadow-[0_8px_30px_rgb(249,115,22,0.3)]
-        hover:shadow-[0_8px_40px_rgb(249,115,22,0.4)]
-        hover:scale-105
-        active:scale-95
-        transition-all duration-200
-        ${pulse ? 'animate-pulse' : ''}
-      `}
-      aria-label={`View cart: ${totalItems} items, total ${formatCurrency(totalPrice)}`}
-    >
-      {/* ✅ Cart Icon with Badge */}
-      <div className="relative">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-          <path d="M3 3H5L5.4 5M7 13H17L21 5H5.4M7 13L5.4 5M7 13L4.7 15.3C4.1 15.9 4.5 17 5.4 17H17M17 17C15.9 17 15 17.9 15 19C15 20.1 15.9 21 17 21C18.1 21 19 20.1 19 19C19 17.9 18.1 17 17 17ZM9 19C9 20.1 8.1 21 7 21C5.9 21 5 20.1 5 19C5 17.9 5.9 17 7 17C8.1 17 9 17.9 9 19Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-        
-        {/* Item Count Badge */}
-        <span className="absolute -top-2 -right-2 w-5 h-5 bg-white text-orange-500 text-xs font-bold rounded-full flex items-center justify-center shadow-md">
-          {totalItems}
-        </span>
-      </div>
+    <div className="fixed bottom-0 left-0 right-0 z-50 max-w-[420px] mx-auto px-4 pb-5">
+      <button
+        onClick={handleClick}
+        className={`
+          w-full
+          flex items-stretch justify-between
+          bg-white
+          rounded-xl
+          shadow-lg hover:shadow-xl
+          transition-all duration-200
+          overflow-hidden
+          ${pulse ? 'animate-pulse' : ''}
+        `}
+        aria-label={`Checkout: ${totalItems} items, total ${formatPrice(totalPrice)}`}
+      >
+        {/* LEFT: Cart Icon with Badge - White Box */}
+        <div className="relative flex items-center justify-center w-14 bg-white py-2">
+          <svg
+            width="26"
+            height="26"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#F97316"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <circle cx="9" cy="21" r="1" />
+            <circle cx="20" cy="21" r="1" />
+            <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+          </svg>
 
-      {/* Price */}
-      <div className="flex flex-col items-start">
-        <span className="text-xs font-medium opacity-90">
-          {totalItems} {totalItems === 1 ? 'item' : 'items'}
-        </span>
-        <span className="text-base font-bold">
-          {formatCurrency(totalPrice)}
-        </span>
-      </div>
+          {/* Orange Badge - Menempel di atas icon */}
+          <div className="absolute top-1 right-1 min-w-5 h-5 px-1.5 bg-orange-500 text-white text-[11px] font-bold rounded-full flex items-center justify-center shadow-sm">
+            {totalItems}
+          </div>
+        </div>
 
-      {/* Arrow */}
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-        <path d="M6 12L10 8L6 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    </button>
+        {/* CENTER: Total - White Background */}
+        <div className="flex flex-col items-start justify-center px-3 py-2.5 flex-1 bg-white">
+          <span className="text-[10px] text-gray-500 font-medium">
+            Total
+          </span>
+          <span className="text-base font-bold text-gray-900">
+            {formatPrice(totalPrice)}
+          </span>
+        </div>
+
+        {/* RIGHT: CHECK OUT - Orange Box */}
+        <div className="flex items-center justify-center px-4 py-2.5 bg-orange-500 hover:bg-orange-600 transition-colors">
+          <span className="text-sm font-bold text-white whitespace-nowrap">
+            CHECK OUT ({totalItems})
+          </span>
+        </div>
+      </button>
+    </div>
   );
 }
 

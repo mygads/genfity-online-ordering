@@ -74,20 +74,32 @@ export default function CustomerHeader({
   const [merchantInfo, setMerchantInfo] = useState<MerchantInfo | null>(null);
 
   /**
-   * ✅ Hydration-safe auth detection
+   * ✅ Hydration-safe auth detection with debug logging
    * 
    * @specification copilot-instructions.md - Emergency Troubleshooting
    */
   useEffect(() => {
     setIsMounted(true);
-    setIsAuthenticated(isCustomerAuthenticated());
+    const authStatus = isCustomerAuthenticated();
+    setIsAuthenticated(authStatus);
+    console.log('🔐 [CUSTOMER HEADER] Initial auth check:', authStatus);
 
     const handleAuthChange = () => {
-      setIsAuthenticated(isCustomerAuthenticated());
+      const newAuthStatus = isCustomerAuthenticated();
+      console.log('🔐 [CUSTOMER HEADER] Auth state changed:', newAuthStatus);
+      setIsAuthenticated(newAuthStatus);
     };
 
+    // Listen for storage changes (logout from another tab)
     window.addEventListener('storage', handleAuthChange);
-    return () => window.removeEventListener('storage', handleAuthChange);
+
+    // Listen for custom auth events (logout from same tab)
+    window.addEventListener('customerAuthChange', handleAuthChange);
+
+    return () => {
+      window.removeEventListener('storage', handleAuthChange);
+      window.removeEventListener('customerAuthChange', handleAuthChange);
+    };
   }, []);
 
   /**
@@ -190,9 +202,9 @@ export default function CustomerHeader({
 
     const refUrl = buildRefUrl();
     const encodedRef = encodeURIComponent(refUrl);
-    
+
     let url = `/${merchantCode}/profile`;
-    
+
     if (mode) {
       url += `?mode=${mode}&ref=${encodedRef}`;
     } else {
@@ -226,9 +238,9 @@ export default function CustomerHeader({
 
     const refUrl = buildRefUrl();
     const encodedRef = encodeURIComponent(refUrl);
-    
+
     let url = `/${merchantCode}/history`;
-    
+
     if (mode) {
       url += `?mode=${mode}&ref=${encodedRef}`;
     } else {
@@ -262,12 +274,12 @@ export default function CustomerHeader({
           aria-label="Go back"
         >
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-            <path 
-              d="M15 18L9 12L15 6" 
-              stroke="currentColor" 
-              strokeWidth="2" 
-              strokeLinecap="round" 
-              strokeLinejoin="round" 
+            <path
+              d="M15 18L9 12L15 6"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
             />
           </svg>
         </button>
@@ -280,11 +292,11 @@ export default function CustomerHeader({
         {/* Merchant Logo */}
         {merchantInfo?.logoUrl && (
           <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-orange-500 shrink-0 relative">
-            <Image 
-              src={merchantInfo.logoUrl} 
-              alt={merchantInfo.name} 
+            <Image
+              src={merchantInfo.logoUrl}
+              alt={merchantInfo.name}
               fill
-              className="object-cover" 
+              className="object-cover"
             />
           </div>
         )}
@@ -315,25 +327,17 @@ export default function CustomerHeader({
         {!isMounted ? (
           /* ✅ Loading placeholder during hydration */
           <div className="flex gap-2">
-            <div className="w-9 h-9 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
-            <div className="w-9 h-9 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
+            <div className="w-20 h-9 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
           </div>
-        ) : (
+        ) : merchantCode && isAuthenticated ? (
+          /* ✅ AUTHENTICATED WITH MERCHANT: Show History & Profile buttons */
           <>
-            {/* ========================================
-                ✅ ALWAYS VISIBLE: History Button
-            ======================================== */}
+            {/* History Button */}
             <button
               onClick={handleHistoryClick}
-              className={`
-                p-2 rounded-lg transition-all duration-200
-                ${isAuthenticated 
-                  ? 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300' 
-                  : 'hover:bg-orange-50 dark:hover:bg-orange-900/20 text-gray-400 dark:text-gray-500'
-                }
-              `}
+              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 transition-all duration-200"
               aria-label="Order History"
-              title={isAuthenticated ? 'Riwayat Pesanan' : 'Login untuk melihat riwayat'}
+              title="Order History"
             >
               <svg
                 width="20"
@@ -342,29 +346,18 @@ export default function CustomerHeader({
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="2"
-                className="transition-colors"
               >
                 <circle cx="12" cy="12" r="10" />
                 <polyline points="12 6 12 12 16 14" />
               </svg>
-              
-              {/* ✅ Optional: Badge for unauthenticated state */}
             </button>
 
-            {/* ========================================
-                ✅ ALWAYS VISIBLE: Profile Button
-            ======================================== */}
+            {/* Profile Button */}
             <button
               onClick={handleProfileClick}
-              className={`
-                p-2 rounded-lg transition-all duration-200
-                ${isAuthenticated 
-                  ? 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300' 
-                  : 'hover:bg-orange-50 dark:hover:bg-orange-900/20 text-gray-400 dark:text-gray-500'
-                }
-              `}
+              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 transition-all duration-200"
               aria-label="Profile"
-              title={isAuthenticated ? 'Profil Saya' : 'Login untuk melihat profil'}
+              title="Profile"
             >
               <svg
                 width="20"
@@ -373,16 +366,28 @@ export default function CustomerHeader({
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="2"
-                className="transition-colors"
               >
                 <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
                 <circle cx="12" cy="7" r="4" />
               </svg>
-              
-              {/* ✅ Optional: Badge for unauthenticated state */}
             </button>
           </>
-        )}
+        ) : merchantCode && !isAuthenticated ? (
+          /* ✅ NOT AUTHENTICATED WITH MERCHANT: Show Sign In button */
+          <button
+            onClick={() => {
+              const refUrl = buildRefUrl();
+              const encodedRef = encodeURIComponent(refUrl);
+              const loginUrl = `/login?merchant=${merchantCode}${mode ? `&mode=${mode}` : ''}&ref=${encodedRef}`;
+              console.log('🔗 [CUSTOMER HEADER] Navigate to login:', loginUrl);
+              router.push(loginUrl);
+            }}
+            className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200"
+            aria-label="Sign In"
+          >
+            Sign In
+          </button>
+        ) : null}
       </div>
     </header>
   );
